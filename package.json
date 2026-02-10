@@ -149,6 +149,7 @@
     "playwright-core": "1.58.2",
     "proper-lockfile": "^4.1.2",
     "qrcode-terminal": "^0.12.0",
+    "rice-node-sdk": "^1.0.7",
     "sharp": "^0.34.5",
     "signal-utils": "^0.21.1",
     "sqlite-vec": "0.1.7-alpha.2",
@@ -160,6 +161,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@ai-sdk/provider-utils": "^4.0.14",
     "@grammyjs/types": "^3.23.0",
     "@lit-labs/signals": "^0.2.0",
     "@lit/context": "^1.1.6",

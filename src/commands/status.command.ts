@@ -12,12 +12,6 @@ import {
   normalizeUpdateChannel,
   resolveEffectiveUpdateChannel,
 } from "../infra/update-channels.js";
-import {
-  resolveMemoryCacheSummary,
-  resolveMemoryFtsState,
-  resolveMemoryVectorState,
-  type Tone,
-} from "../memory/status-format.js";
 import { runSecurityAudit } from "../security/audit.js";
 import { renderTable } from "../terminal/table.js";
 import { theme } from "../terminal/theme.js";
@@ -316,32 +310,16 @@ export async function statusCommand(
     }
     const parts: string[] = [];
     const dirtySuffix = memory.dirty ? ` · ${warn("dirty")}` : "";
-    parts.push(`${memory.files} files · ${memory.chunks} chunks${dirtySuffix}`);
-    if (memory.sources?.length) {
-      parts.push(`sources ${memory.sources.join(", ")}`);
+    parts.push(`${memory.provider}${dirtySuffix}`);
+
+    if (memory.model && memory.model !== "default") {
+      parts.push(`model ${memory.model}`);
     }
+
     if (memoryPlugin.slot) {
       parts.push(`plugin ${memoryPlugin.slot}`);
     }
-    const colorByTone = (tone: Tone, text: string) =>
-      tone === "ok" ? ok(text) : tone === "warn" ? warn(text) : muted(text);
-    const vector = memory.vector;
-    if (vector) {
-      const state = resolveMemoryVectorState(vector);
-      const label = state.state === "disabled" ? "vector off" : `vector ${state.state}`;
-      parts.push(colorByTone(state.tone, label));
-    }
-    const fts = memory.fts;
-    if (fts) {
-      const state = resolveMemoryFtsState(fts);
-      const label = state.state === "disabled" ? "fts off" : `fts ${state.state}`;
-      parts.push(colorByTone(state.tone, label));
-    }
-    const cache = memory.cache;
-    if (cache) {
-      const summary = resolveMemoryCacheSummary(cache);
-      parts.push(colorByTone(summary.tone, summary.text));
-    }
+
     return parts.join(" · ");
   })();
 

@@ -1,50 +1,20 @@
 import type { SessionSendPolicyConfig } from "./types.base.js";
 
-export type MemoryBackend = "builtin" | "qmd";
+export type MemoryBackend = "rice";
 export type MemoryCitationsMode = "auto" | "on" | "off";
 
 export type MemoryConfig = {
   backend?: MemoryBackend;
   citations?: MemoryCitationsMode;
-  qmd?: MemoryQmdConfig;
+  rice?: MemoryRiceConfig;
 };
 
-export type MemoryQmdConfig = {
-  command?: string;
-  includeDefaultMemory?: boolean;
-  paths?: MemoryQmdIndexPath[];
-  sessions?: MemoryQmdSessionConfig;
-  update?: MemoryQmdUpdateConfig;
-  limits?: MemoryQmdLimitsConfig;
-  scope?: SessionSendPolicyConfig;
-};
-
-export type MemoryQmdIndexPath = {
-  path: string;
-  name?: string;
-  pattern?: string;
-};
-
-export type MemoryQmdSessionConfig = {
+export type MemoryRiceConfig = {
   enabled?: boolean;
-  exportDir?: string;
-  retentionDays?: number;
-};
-
-export type MemoryQmdUpdateConfig = {
-  interval?: string;
-  debounceMs?: number;
-  onBoot?: boolean;
-  waitForBootSync?: boolean;
-  embedInterval?: string;
-  commandTimeoutMs?: number;
-  updateTimeoutMs?: number;
-  embedTimeoutMs?: number;
-};
-
-export type MemoryQmdLimitsConfig = {
-  maxResults?: number;
-  maxSnippetChars?: number;
-  maxInjectedChars?: number;
-  timeoutMs?: number;
+  endpoint?: string;
+  runId?: string;
+  sync?: {
+    enabled?: boolean;
+    interval?: string;
+  };
 };

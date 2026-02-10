@@ -1,4 +1,4 @@
-export { MemoryIndexManager } from "./manager.js";
+export { RiceMemoryManager } from "./rice-manager.js";
 export type {
   MemoryEmbeddingProbeResult,
   MemorySearchManager,

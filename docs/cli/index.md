@@ -259,11 +259,11 @@ Most plugin changes require a gateway restart. See [/plugin](/tools/plugin).
 
 ## Memory
 
-Vector search over `MEMORY.md` + `memory/*.md`:
+Rice-backed semantic memory:
 
-- `openclaw memory status` — show index stats.
-- `openclaw memory index` — reindex memory files.
-- `openclaw memory search "<query>"` — semantic search over memory.
+- `openclaw memory status` — show memory provider health/status.
+- `openclaw memory index` — trigger remote sync/probe checks.
+- `openclaw memory search "<query>"` — semantic search over Rice memory.
 
 ## Chat slash commands
 

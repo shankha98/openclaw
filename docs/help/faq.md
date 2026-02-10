@@ -87,7 +87,7 @@ Quick answers plus deeper troubleshooting for real-world setups (local dev, VPS,
 - [Where things live on disk](#where-things-live-on-disk)
   - [Is all data used with OpenClaw saved locally?](#is-all-data-used-with-openclaw-saved-locally)
   - [Where does OpenClaw store its data?](#where-does-openclaw-store-its-data)
-  - [Where should AGENTS.md / SOUL.md / USER.md / MEMORY.md live?](#where-should-agentsmd-soulmd-usermd-memorymd-live)
+  - [Where should AGENTS.md / SOUL.md / USER.md live?](#where-should-agentsmd-soulmd-usermd-live)
   - [What's the recommended backup strategy?](#whats-the-recommended-backup-strategy)
   - [How do I completely uninstall OpenClaw?](#how-do-i-completely-uninstall-openclaw)
   - [Can agents work outside the workspace?](#can-agents-work-outside-the-workspace)
@@ -1187,52 +1187,45 @@ Set `agents.defaults.sandbox.docker.binds` to `["host:path:mode"]` (e.g., `"/hom
 
 ### How does memory work
 
-OpenClaw memory is just Markdown files in the agent workspace:
+OpenClaw durable memory is Rice-backed:
 
-- Daily notes in `memory/YYYY-MM-DD.md`
-- Curated long-term notes in `MEMORY.md` (main/private sessions only)
+- Rice State stores durable facts and commits
+- Rice Storage powers semantic recall
+- `memory_search` + `memory_get` recall prior context
+- `memory_store` persists durable facts
 
-OpenClaw also runs a **silent pre-compaction memory flush** to remind the model
-to write durable notes before auto-compaction. This only runs when the workspace
-is writable (read-only sandboxes skip it). See [Memory](/concepts/memory).
+Workspace files (`AGENTS.md`, `SOUL.md`, etc.) still guide behavior, but durable
+memory is not file-based. OpenClaw also runs a **silent pre-compaction memory
+flush** that can trigger `memory_store` before auto-compaction. See [Memory](/concepts/memory).
 
 ### Memory keeps forgetting things How do I make it stick
 
-Ask the bot to **write the fact to memory**. Long-term notes belong in `MEMORY.md`,
-short-term context goes into `memory/YYYY-MM-DD.md`.
+Ask the bot to **store the fact with `memory_store`** and confirm the tool call succeeds.
 
 This is still an area we are improving. It helps to remind the model to store memories;
 it will know what to do. If it keeps forgetting, verify the Gateway is using the same
-workspace on every run.
+Rice run context and endpoints on every run.
 
 Docs: [Memory](/concepts/memory), [Agent workspace](/concepts/agent-workspace).
 
 ### Does semantic memory search require an OpenAI API key
 
-Only if you use **OpenAI embeddings**. Codex OAuth covers chat/completions and
-does **not** grant embeddings access, so **signing in with Codex (OAuth or the
-Codex CLI login)** does not help for semantic memory search. OpenAI embeddings
-still need a real API key (`OPENAI_API_KEY` or `models.providers.openai.apiKey`).
+No. Rice-backed memory uses Rice endpoints and auth tokens.
 
-If you don't set a provider explicitly, OpenClaw auto-selects a provider when it
-can resolve an API key (auth profiles, `models.providers.*.apiKey`, or env vars).
-It prefers OpenAI if an OpenAI key resolves, otherwise Gemini if a Gemini key
-resolves. If neither key is available, memory search stays disabled until you
-configure it. If you have a local model path configured and present, OpenClaw
-prefers `local`.
+You need valid Rice connection/auth values (for example in `.env`):
 
-If you'd rather stay local, set `memorySearch.provider = "local"` (and optionally
-`memorySearch.fallback = "none"`). If you want Gemini embeddings, set
-`memorySearch.provider = "gemini"` and provide `GEMINI_API_KEY` (or
-`memorySearch.remote.apiKey`). We support **OpenAI, Gemini, or local** embedding
-models - see [Memory](/concepts/memory) for the setup details.
+- `STATE_INSTANCE_URL`, `STATE_AUTH_TOKEN`
+- `STORAGE_INSTANCE_URL`, `STORAGE_AUTH_TOKEN`
+
+If memory search fails, check DNS/network reachability for your Rice hosts and
+confirm token validity.
 
 ### Does memory persist forever What are the limits
 
-Memory files live on disk and persist until you delete them. The limit is your
-storage, not the model. The **session context** is still limited by the model
-context window, so long conversations can compact or truncate. That is why
-memory search exists - it pulls only the relevant parts back into context.
+Rice durable memory persists until it is updated or removed in Rice. Limits are
+set by your Rice deployment and retention policies. The **session context** is
+still limited by the model context window, so long conversations can compact or
+truncate. Memory tools are used to pull relevant context back in.
 
 Docs: [Memory](/concepts/memory), [Context](/concepts/context).
 
@@ -1242,8 +1235,9 @@ Docs: [Memory](/concepts/memory), [Context](/concepts/context).
 
 No - **OpenClaw's state is local**, but **external services still see what you send them**.
 
-- **Local by default:** sessions, memory files, config, and workspace live on the Gateway host
+- **Local by default:** sessions, config, and workspace live on the Gateway host
   (`~/.openclaw` + your workspace directory).
+- **Remote durable memory:** Rice State and Rice Storage hold durable memory data.
 - **Remote by necessity:** messages you send to model providers (Anthropic/OpenAI/etc.) go to
   their APIs, and chat platforms (WhatsApp/Telegram/Slack/etc.) store message data on their
   servers.
@@ -1269,14 +1263,14 @@ Everything lives under `$OPENCLAW_STATE_DIR` (default: `~/.openclaw`):
 
 Legacy single-agent path: `~/.openclaw/agent/*` (migrated by `openclaw doctor`).
 
-Your **workspace** (AGENTS.md, memory files, skills, etc.) is separate and configured via `agents.defaults.workspace` (default: `~/.openclaw/workspace`).
+Your **workspace** (AGENTS.md, SOUL.md, USER.md, skills notes, etc.) is separate and configured via `agents.defaults.workspace` (default: `~/.openclaw/workspace`).
 
-### Where should AGENTSmd SOULmd USERmd MEMORYmd live
+### Where should AGENTSmd SOULmd USERmd live
 
 These files live in the **agent workspace**, not `~/.openclaw`.
 
 - **Workspace (per agent)**: `AGENTS.md`, `SOUL.md`, `IDENTITY.md`, `USER.md`,
-  `MEMORY.md` (or `memory.md`), `memory/YYYY-MM-DD.md`, optional `HEARTBEAT.md`.
+  optional `HEARTBEAT.md`, optional local notes.
 - **State dir (`~/.openclaw`)**: config, credentials, auth profiles, sessions, logs,
   and shared skills (`~/.openclaw/skills`).
 
@@ -1293,19 +1287,19 @@ workspace on every launch (and remember: remote mode uses the **gateway host's**
 workspace, not your local laptop).
 
 Tip: if you want a durable behavior or preference, ask the bot to **write it into
-AGENTS.md or MEMORY.md** rather than relying on chat history.
+Rice memory** (via `memory_store`) rather than relying on chat history.
 
 See [Agent workspace](/concepts/agent-workspace) and [Memory](/concepts/memory).
 
 ### What's the recommended backup strategy
 
 Put your **agent workspace** in a **private** git repo and back it up somewhere
-private (for example GitHub private). This captures memory + AGENTS/SOUL/USER
-files, and lets you restore the assistant's "mind" later.
+private (for example GitHub private). This captures AGENTS/SOUL/USER files and
+workspace conventions.
 
 Do **not** commit anything under `~/.openclaw` (credentials, sessions, tokens).
 If you need a full restore, back up both the workspace and the state directory
-separately (see the migration question above).
+separately, and ensure your Rice service data is backed up independently.
 
 Docs: [Agent workspace](/concepts/agent-workspace).
 

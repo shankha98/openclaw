@@ -9,6 +9,9 @@ title: "Workspace Memory Research"
 
 # Workspace Memory v2 (offline): research notes
 
+This document is historical research for a deprecated file-based memory direction.
+Current OpenClaw memory uses Rice State + Rice Storage. See [Memory](/concepts/memory).
+
 Target: Clawd-style workspace (`agents.defaults.workspace`, default `~/.openclaw/workspace`) where “memory” is stored as one Markdown file per day (`memory/YYYY-MM-DD.md`) plus a small set of stable files (e.g. `memory.md`, `SOUL.md`).
 
 This doc proposes an **offline-first** memory architecture that keeps Markdown as the canonical, reviewable source of truth, but adds **structured recall** (search, entity summaries, confidence updates) via a derived index.

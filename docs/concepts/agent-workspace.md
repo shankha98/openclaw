@@ -97,13 +97,10 @@ These are the standard files OpenClaw expects inside the workspace:
   - Only created for a brand-new workspace.
   - Delete it after the ritual is complete.
 
-- `memory/YYYY-MM-DD.md`
-  - Daily memory log (one file per day).
-  - Recommended to read today + yesterday on session start.
-
-- `MEMORY.md` (optional)
-  - Curated long-term memory.
-  - Only load in the main, private session (not shared/group contexts).
+- `memory/` and `MEMORY.md` (optional notes)
+  - Optional workspace notes only.
+  - Not used as the durable memory backend.
+  - Durable memory uses Rice State and Rice Storage.
 
 See [Memory](/concepts/memory) for the workflow and automatic memory flush.
 

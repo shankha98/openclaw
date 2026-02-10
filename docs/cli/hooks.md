@@ -246,7 +246,7 @@ Saves session context to memory when you issue `/new`.
 openclaw hooks enable session-memory
 ```
 
-**Output:** `~/.openclaw/workspace/memory/YYYY-MM-DD-slug.md`
+**Output:** Rice State commit (no local memory file write)
 
 **See:** [session-memory documentation](/automation/hooks#session-memory)
 

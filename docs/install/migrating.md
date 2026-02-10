@@ -45,7 +45,7 @@ Common defaults:
 - `~/.openclaw/workspace/` (recommended workspace)
 - a custom folder you created
 
-Your workspace is where files like `MEMORY.md`, `USER.md`, and `memory/*.md` live.
+Your workspace is where files like `AGENTS.md`, `USER.md`, and `TOOLS.md` live. Durable memory is stored in Rice services (configured via env/config), not local `MEMORY.md` files.
 
 ### 3) Understand what you will preserve
 

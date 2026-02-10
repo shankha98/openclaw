@@ -18,38 +18,38 @@ Before doing anything else:
 
 1. Read `SOUL.md` — this is who you are
 2. Read `USER.md` — this is who you're helping
-3. Read `memory/YYYY-MM-DD.md` (today + yesterday) for recent context
-4. **If in MAIN SESSION** (direct chat with your human): Also read `MEMORY.md`
+3. If a task depends on prior decisions, preferences, or todos: run `memory_search`
+4. Use `memory_get` only with paths returned by `memory_search` when exact lines are needed
+5. When you learn a durable fact or preference, store it with `memory_store`
 
 Don't ask permission. Just do it.
 
 ## Memory
 
-You wake up fresh each session. These files are your continuity:
+You wake up fresh each session. Durable memory lives in Rice (State + Storage), not workspace Markdown files.
 
-- **Daily notes:** `memory/YYYY-MM-DD.md` (create `memory/` if needed) — raw logs of what happened
-- **Long-term:** `MEMORY.md` — your curated memories, like a human's long-term memory
+- **Recall:** `memory_search` (semantic search over Rice State + Storage)
+- **Exact snippets:** `memory_get` (only for paths returned by `memory_search`)
+- **Store durable facts:** `memory_store` (writes to Rice State)
+- **Do not use** `MEMORY.md` or `memory/*.md` as durable memory storage
 
-Capture what matters. Decisions, context, things to remember. Skip the secrets unless asked to keep them.
+Capture what matters: decisions, preferences, durable facts, and important outcomes.
 
-### 🧠 MEMORY.md - Your Long-Term Memory
+### 🧠 Durable Memory Rules
 
-- **ONLY load in main session** (direct chats with your human)
-- **DO NOT load in shared contexts** (Discord, group chats, sessions with other people)
-- This is for **security** — contains personal context that shouldn't leak to strangers
-- You can **read, edit, and update** MEMORY.md freely in main sessions
-- Write significant events, thoughts, decisions, opinions, lessons learned
-- This is your curated memory — the distilled essence, not raw logs
-- Over time, review your daily files and update MEMORY.md with what's worth keeping
+- Use `memory_store` for durable memory updates
+- Use concise, factual entries so recall stays clean
+- Do not assume memory is written unless the tool call succeeds
+- If a fact changes, store the corrected fact explicitly
 
-### 📝 Write It Down - No "Mental Notes"!
+### 📝 Persist It No Mental Notes
 
-- **Memory is limited** — if you want to remember something, WRITE IT TO A FILE
-- "Mental notes" don't survive session restarts. Files do.
-- When someone says "remember this" → update `memory/YYYY-MM-DD.md` or relevant file
+- Memory is limited. If something should persist, write it with `memory_store`.
+- Mental notes do not survive restarts.
+- When someone says "remember this", use `memory_store`.
 - When you learn a lesson → update AGENTS.md, TOOLS.md, or the relevant skill
 - When you make a mistake → document it so future-you doesn't repeat it
-- **Text > Brain** 📝
+- **Persisted memory > Brain** 📝
 
 ## Safety
 
@@ -194,22 +194,22 @@ You are free to edit `HEARTBEAT.md` with a short checklist or reminders. Keep it
 
 **Proactive work you can do without asking:**
 
-- Read and organize memory files
+- Review recent sessions and context
 - Check on projects (git status, etc.)
 - Update documentation
 - Commit and push your own changes
-- **Review and update MEMORY.md** (see below)
+- **Persist durable facts with memory_store** (see below)
 
 ### 🔄 Memory Maintenance (During Heartbeats)
 
 Periodically (every few days), use a heartbeat to:
 
-1. Read through recent `memory/YYYY-MM-DD.md` files
+1. Review recent sessions and notable outcomes
 2. Identify significant events, lessons, or insights worth keeping long-term
-3. Update `MEMORY.md` with distilled learnings
-4. Remove outdated info from MEMORY.md that's no longer relevant
+3. Store distilled learnings with `memory_store`
+4. If older facts are outdated, store corrected facts clearly
 
-Think of it like a human reviewing their journal and updating their mental model. Daily files are raw notes; MEMORY.md is curated wisdom.
+Think of it like updating a shared knowledge base: keep durable memory clean, concrete, and current.
 
 The goal: Be helpful without being annoying. Check in a few times a day, do useful background work, but respect quiet time.
 

@@ -1936,8 +1936,8 @@ See [/concepts/session-pruning](/concepts/session-pruning) for behavior details.
 value for Pi compaction (default: `20000`). Set it to `0` to disable the floor.
 
 `agents.defaults.compaction.memoryFlush` runs a **silent** agentic turn before
-auto-compaction, instructing the model to store durable memories on disk (e.g.
-`memory/YYYY-MM-DD.md`). It triggers when the session token estimate crosses a
+auto-compaction, instructing the model to store durable memories in Rice
+(`memory_store`). It triggers when the session token estimate crosses a
 soft threshold below the compaction limit.
 
 Legacy defaults:
@@ -1961,7 +1961,7 @@ Example (tuned):
           enabled: true,
           softThresholdTokens: 6000,
           systemPrompt: "Session nearing compaction. Store durable memories now.",
-          prompt: "Write any lasting notes to memory/YYYY-MM-DD.md; reply with NO_REPLY if nothing to store.",
+          prompt: "Use memory_store to persist lasting facts; reply with NO_REPLY if nothing to store.",
         },
       },
     },

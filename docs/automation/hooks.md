@@ -454,30 +454,22 @@ Saves session context to memory when you issue `/new`.
 
 **Requirements**: `workspace.dir` must be configured
 
-**Output**: `<workspace>/memory/YYYY-MM-DD-slug.md` (defaults to `~/.openclaw/workspace`)
+**Output**: Rice State commit (no local memory file write)
 
 **What it does**:
 
 1. Uses the pre-reset session entry to locate the correct transcript
-2. Extracts the last 15 lines of conversation
-3. Uses LLM to generate a descriptive filename slug
-4. Saves session metadata to a dated memory file
+2. Extracts recent user and assistant conversation lines
+3. Uses LLM to generate a descriptive session slug
+4. Commits session context to Rice State memory
 
-**Example output**:
+**Commit payload includes**:
 
-```markdown
-# Session: 2026-01-16 14:30:00 UTC
-
-- **Session Key**: agent:main:main
-- **Session ID**: abc123def456
-- **Source**: telegram
-```
-
-**Filename examples**:
-
-- `2026-01-16-vendor-pitch.md`
-- `2026-01-16-api-design.md`
-- `2026-01-16-1430.md` (fallback timestamp if slug generation fails)
+- Session timestamp (UTC)
+- Session key and session id
+- Source channel
+- Generated slug
+- Conversation summary lines
 
 **Enable**:
 

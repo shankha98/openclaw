@@ -47,7 +47,9 @@ cp docs/reference/AGENTS.default.md ~/.openclaw/workspace/AGENTS.md
 
 ## Session start (required)
 
-- Read `SOUL.md`, `USER.md`, `memory.md`, and today+yesterday in `memory/`.
+- Read `SOUL.md` and `USER.md`.
+- If context depends on prior decisions, preferences, or todos, run `memory_search`.
+- Use `memory_get` only with paths returned by `memory_search`.
 - Do it before responding.
 
 ## Soul (required)
@@ -63,9 +65,9 @@ cp docs/reference/AGENTS.default.md ~/.openclaw/workspace/AGENTS.md
 
 ## Memory system (recommended)
 
-- Daily log: `memory/YYYY-MM-DD.md` (create `memory/` if needed).
-- Long-term memory: `memory.md` for durable facts, preferences, and decisions.
-- On session start, read today + yesterday + `memory.md` if present.
+- Durable memory is Rice-backed.
+- Use `memory_store` for durable facts, preferences, and decisions.
+- Use `memory_search` + `memory_get` for recall.
 - Capture: decisions, preferences, constraints, open loops.
 - Avoid secrets unless explicitly requested.
 
@@ -76,7 +78,7 @@ cp docs/reference/AGENTS.default.md ~/.openclaw/workspace/AGENTS.md
 
 ## Backup tip (recommended)
 
-If you treat this workspace as Clawd’s “memory”, make it a git repo (ideally private) so `AGENTS.md` and your memory files are backed up.
+If you treat this workspace as Clawd’s operating manual, make it a git repo (ideally private) so `AGENTS.md` and related notes are backed up.
 
 ```bash
 cd ~/.openclaw/workspace

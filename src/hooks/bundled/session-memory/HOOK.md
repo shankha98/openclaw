@@ -16,7 +16,7 @@ metadata:
 
 # Session Memory Hook
 
-Automatically saves session context to your workspace memory when you issue the `/new` command.
+Automatically saves session context to Rice State memory when you issue the `/new` command.
 
 ## What It Does
 
@@ -24,30 +24,19 @@ When you run `/new` to start a fresh session:
 
 1. **Finds the previous session** - Uses the pre-reset session entry to locate the correct transcript
 2. **Extracts conversation** - Reads the last N user/assistant messages from the session (default: 15, configurable)
-3. **Generates descriptive slug** - Uses LLM to create a meaningful filename slug based on conversation content
-4. **Saves to memory** - Creates a new file at `<workspace>/memory/YYYY-MM-DD-slug.md`
-5. **Sends confirmation** - Notifies you with the file path
+3. **Generates descriptive slug** - Uses LLM to create a meaningful tag based on conversation content
+4. **Commits to Rice State** - Stores the snapshot with `state.commit(...)` for the active runId
+5. **No local memory files** - Does not create `MEMORY.md` or `memory/*.md`
 
-## Output Format
+## Stored Format
 
-Memory files are created with the following format:
+The committed entry includes:
 
-```markdown
-# Session: 2026-01-16 14:30:00 UTC
-
-- **Session Key**: agent:main:main
-- **Session ID**: abc123def456
-- **Source**: telegram
-```
-
-## Filename Examples
-
-The LLM generates descriptive slugs based on your conversation:
-
-- `2026-01-16-vendor-pitch.md` - Discussion about vendor evaluation
-- `2026-01-16-api-design.md` - API architecture planning
-- `2026-01-16-bug-fix.md` - Debugging session
-- `2026-01-16-1430.md` - Fallback timestamp if slug generation fails
+- Session key + session id
+- Source channel
+- UTC timestamp
+- Generated slug
+- Recent conversation summary
 
 ## Requirements
 
@@ -59,9 +48,9 @@ The hook uses your configured LLM provider to generate slugs, so it works with a
 
 The hook supports optional configuration:
 
-| Option     | Type   | Default | Description                                                     |
-| ---------- | ------ | ------- | --------------------------------------------------------------- |
-| `messages` | number | 15      | Number of user/assistant messages to include in the memory file |
+| Option     | Type   | Default | Description                                                |
+| ---------- | ------ | ------- | ---------------------------------------------------------- |
+| `messages` | number | 15      | Number of user/assistant messages to include in the commit |
 
 Example configuration:
 
@@ -82,7 +71,6 @@ Example configuration:
 
 The hook automatically:
 
-- Uses your workspace directory (`~/.openclaw/workspace` by default)
 - Uses your configured LLM for slug generation
 - Falls back to timestamp slugs if LLM is unavailable
 

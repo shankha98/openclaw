@@ -138,7 +138,11 @@ async function scanMemoryFiles(workspaceDir: string): Promise<SourceScan> {
   }
 
   if ((totalFiles ?? 0) === 0 && issues.length === 0) {
-    issues.push(`no memory files found in ${shortenHomePath(workspaceDir)}`);
+    issues.push(
+      `No memory files found in ${shortenHomePath(
+        workspaceDir,
+      )} (create MEMORY.md or memory/ folder to add knowledge)`,
+    );
   }
 
   return { source: "memory", totalFiles, issues };
@@ -220,7 +224,7 @@ export async function runMemoryStatus(opts: MemoryCommandOptions) {
         const status = manager.status();
         const workspaceDir = status.workspaceDir;
         let scan: MemorySourceScan | undefined;
-        if (workspaceDir) {
+        if (workspaceDir && !status.provider.includes("rice")) {
           const fileScan = await scanMemoryFiles(workspaceDir);
           scan = {
             sources: [fileScan],
@@ -248,8 +252,14 @@ export async function runMemoryStatus(opts: MemoryCommandOptions) {
 
   for (const result of allResults) {
     const { agentId, status, embeddingProbe, indexError, scan } = result;
+    const isRiceProvider = status.provider.includes("rice");
     const totalFiles = scan?.totalFiles ?? null;
-    const indexedLabel = totalFiles === null ? `? files` : `${totalFiles} files`;
+    const indexedLabel = isRiceProvider
+      ? "remote"
+      : totalFiles === null
+        ? "? files"
+        : `${totalFiles} files`;
+    const fileLabel = isRiceProvider ? "Backend" : "Indexed";
 
     if (opts.index) {
       const line = indexError ? `Memory index failed: ${indexError}` : "Memory index complete.";
@@ -262,10 +272,10 @@ export async function runMemoryStatus(opts: MemoryCommandOptions) {
       `${heading("Memory Search")} ${muted(`(${agentId})`)}`,
       `${label("Provider")} ${info(status.provider)}`,
       `${label("Model")} ${info(modelLabel)}`,
-      `${label("Indexed")} ${success(indexedLabel)}`,
+      `${label(fileLabel)} ${success(indexedLabel)}`,
       `${label("Dirty")} ${status.dirty ? warn("yes") : muted("no")}`,
       `${label("Workspace")} ${info(workspacePath)}`,
-    ].filter(Boolean) as string[];
+    ];
 
     if (embeddingProbe) {
       const state = embeddingProbe.ok ? "ready" : "unavailable";
@@ -314,7 +324,7 @@ export function registerMemoryCli(program: Command) {
 
   memory
     .command("index")
-    .description("Reindex memory files")
+    .description("Sync memory backend")
     .option("--agent <id>", "Agent id (default: default agent)")
     .option("--force", "Force full reindex", false)
     .option("--verbose", "Verbose logging", false)
@@ -347,7 +357,7 @@ export function registerMemoryCli(program: Command) {
                   `${heading("Memory Index")} ${muted(`(${agentId})`)}`,
                   `${label("Provider")} ${info(status.provider)}`,
                   `${label("Model")} ${info(modelLabel)}`,
-                ].filter(Boolean) as string[];
+                ];
 
                 defaultRuntime.log(lines.join("\n"));
                 defaultRuntime.log("");
@@ -437,7 +447,7 @@ export function registerMemoryCli(program: Command) {
 
   memory
     .command("search")
-    .description("Search memory files")
+    .description("Search memory")
     .argument("<query>", "Search query")
     .option("--agent <id>", "Agent id (default: default agent)")
     .option("--max-results <n>", "Max results", (value: string) => Number(value))

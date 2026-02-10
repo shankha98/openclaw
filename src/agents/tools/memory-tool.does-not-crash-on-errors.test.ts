@@ -27,7 +27,11 @@ vi.mock("../../memory/index.js", () => {
   };
 });
 
-import { createMemoryGetTool, createMemorySearchTool } from "./memory-tool.js";
+import {
+  createMemoryGetTool,
+  createMemorySearchTool,
+  createMemoryStoreTool,
+} from "./memory-tool.js";
 
 describe("memory tools", () => {
   it("does not throw when memory_search fails (e.g. embeddings 429)", async () => {
@@ -60,6 +64,25 @@ describe("memory tools", () => {
       text: "",
       disabled: true,
       error: "path required",
+    });
+  });
+
+  it("does not throw when memory_store is unsupported", async () => {
+    const cfg = { agents: { list: [{ id: "main", default: true }] } };
+    const tool = createMemoryStoreTool({ config: cfg });
+    expect(tool).not.toBeNull();
+    if (!tool) {
+      throw new Error("tool missing");
+    }
+
+    const result = await tool.execute("call_3", {
+      content: "User prefers terse responses",
+      summary: "Stored user preference",
+    });
+    expect(result.details).toEqual({
+      ok: false,
+      disabled: true,
+      error: "memory backend does not support memory_store",
     });
   });
 });

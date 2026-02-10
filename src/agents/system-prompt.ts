@@ -50,7 +50,8 @@ function buildMemorySection(params: {
   }
   const lines = [
     "## Memory Recall",
-    "Before answering anything about prior work, decisions, dates, people, preferences, or todos: run memory_search on MEMORY.md + memory/*.md; then use memory_get to pull only the needed lines. If low confidence after search, say you checked.",
+    "Before answering anything about prior work, decisions, dates, people, preferences, or todos: run memory_search against Rice memory; then use memory_get with returned paths only when you need exact lines. If low confidence after search, say you checked.",
+    "When you discover a new durable preference/fact, write it with memory_store so it persists in Rice State.",
   ];
   if (params.citationsMode === "off") {
     lines.push(

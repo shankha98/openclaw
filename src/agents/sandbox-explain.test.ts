@@ -57,6 +57,7 @@ describe("sandbox explain helpers", () => {
     expect(policy.allow).toEqual([
       "memory_search",
       "memory_get",
+      "memory_store",
       "read",
       "write",
       "edit",
@@ -85,6 +86,7 @@ describe("sandbox explain helpers", () => {
     const policy = resolveSandboxToolPolicyForAgent(cfg, "main");
     expect(policy.allow).toContain("memory_search");
     expect(policy.allow).toContain("memory_get");
+    expect(policy.allow).toContain("memory_store");
     expect(policy.deny).toContain("memory_get");
   });
 

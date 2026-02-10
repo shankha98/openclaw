@@ -1,18 +1,15 @@
 /**
  * Session memory hook handler
  *
- * Saves session context to memory when /new command is triggered
- * Creates a new dated memory file with LLM-generated slug
+ * Saves session context to Rice State memory when /new command is triggered.
  */
 
 import fs from "node:fs/promises";
-import os from "node:os";
-import path from "node:path";
+import { Client } from "rice-node-sdk";
 import type { OpenClawConfig } from "../../../config/config.js";
 import type { HookHandler } from "../../hooks.js";
-import { resolveAgentWorkspaceDir } from "../../../agents/agent-scope.js";
-import { resolveStateDir } from "../../../config/paths.js";
 import { createSubsystemLogger } from "../../../logging/subsystem.js";
+import { ensureRiceSdkConfigPath } from "../../../memory/rice-sdk-config.js";
 import { resolveAgentIdFromSessionKey } from "../../../routing/session-key.js";
 import { resolveHookConfig } from "../../config.js";
 import { generateSlugViaLLM } from "../../llm-slug-generator.js";
@@ -64,7 +61,7 @@ async function getRecentSessionContent(
 }
 
 /**
- * Save session context to memory when /new command is triggered
+ * Save session context to Rice state when /new command is triggered.
  */
 const saveSessionToMemory: HookHandler = async (event) => {
   // Only trigger on 'new' command
@@ -78,13 +75,8 @@ const saveSessionToMemory: HookHandler = async (event) => {
     const context = event.context || {};
     const cfg = context.cfg as OpenClawConfig | undefined;
     const agentId = resolveAgentIdFromSessionKey(event.sessionKey);
-    const workspaceDir = cfg
-      ? resolveAgentWorkspaceDir(cfg, agentId)
-      : path.join(resolveStateDir(process.env, os.homedir), "workspace");
-    const memoryDir = path.join(workspaceDir, "memory");
-    await fs.mkdir(memoryDir, { recursive: true });
 
-    // Get today's date for filename
+    // Get today's date for metadata
     const now = new Date(event.timestamp);
     const dateStr = now.toISOString().split("T")[0]; // YYYY-MM-DD
 
@@ -138,14 +130,6 @@ const saveSessionToMemory: HookHandler = async (event) => {
       log.debug("Using fallback timestamp slug", { slug });
     }
 
-    // Create filename with date and slug
-    const filename = `${dateStr}-${slug}.md`;
-    const memoryFilePath = path.join(memoryDir, filename);
-    log.debug("Memory file path resolved", {
-      filename,
-      path: memoryFilePath.replace(os.homedir(), "~"),
-    });
-
     // Format time as HH:MM:SS UTC
     const timeStr = now.toISOString().split("T")[1].split(".")[0];
 
@@ -153,30 +137,42 @@ const saveSessionToMemory: HookHandler = async (event) => {
     const sessionId = (sessionEntry.sessionId as string) || "unknown";
     const source = (context.commandSource as string) || "unknown";
 
-    // Build Markdown entry
+    // Build memory entry payload for Rice State commit
     const entryParts = [
-      `# Session: ${dateStr} ${timeStr} UTC`,
+      `Session snapshot: ${dateStr} ${timeStr} UTC`,
       "",
-      `- **Session Key**: ${event.sessionKey}`,
-      `- **Session ID**: ${sessionId}`,
-      `- **Source**: ${source}`,
+      `Session key: ${event.sessionKey}`,
+      `Session id: ${sessionId}`,
+      `Source: ${source}`,
+      `Slug: ${slug}`,
       "",
     ];
 
     // Include conversation content if available
     if (sessionContent) {
-      entryParts.push("## Conversation Summary", "", sessionContent, "");
+      entryParts.push("Conversation summary:", sessionContent, "");
     }
 
-    const entry = entryParts.join("\n");
+    const entry = entryParts.join("\n").trim();
+    const riceRunId = cfg?.memory?.rice?.runId?.trim() || event.sessionKey || agentId || "main";
 
-    // Write to new memory file
-    await fs.writeFile(memoryFilePath, entry, "utf-8");
-    log.debug("Memory file written successfully");
+    // Keep endpoint override behavior consistent with RiceMemoryManager.
+    const riceEndpoint = cfg?.memory?.rice?.endpoint?.trim();
+    if (riceEndpoint) {
+      process.env.STORAGE_INSTANCE_URL = riceEndpoint;
+      process.env.STATE_INSTANCE_URL = riceEndpoint;
+    }
 
-    // Log completion (but don't send user-visible confirmation - it's internal housekeeping)
-    const relPath = memoryFilePath.replace(os.homedir(), "~");
-    log.info(`Session context saved to ${relPath}`);
+    const riceConfigPath = await ensureRiceSdkConfigPath();
+    const client = new Client({ configPath: riceConfigPath, runId: riceRunId });
+    await client.connect();
+    await client.state.commit(entry, "Session context captured via session-memory hook", {
+      action: "session_memory",
+      reasoning: "Persist recent session context when /new is issued",
+      agent_id: agentId || "main",
+    });
+
+    log.info(`Session context committed to Rice state (runId=${riceRunId})`);
   } catch (err) {
     if (err instanceof Error) {
       log.error("Failed to save session memory", {

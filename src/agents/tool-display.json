@@ -286,6 +286,11 @@
       "title": "Memory Get",
       "detailKeys": ["path", "from", "lines"]
     },
+    "memory_store": {
+      "emoji": "💾",
+      "title": "Memory Store",
+      "detailKeys": ["content", "summary", "action"]
+    },
     "web_search": {
       "emoji": "🔎",
       "title": "Web Search",

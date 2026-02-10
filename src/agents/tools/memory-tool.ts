@@ -3,7 +3,6 @@ import type { OpenClawConfig } from "../../config/config.js";
 import type { MemoryCitationsMode } from "../../config/types.memory.js";
 import type { MemorySearchResult } from "../../memory/types.js";
 import type { AnyAgentTool } from "./common.js";
-import { resolveMemoryBackendConfig } from "../../memory/backend-config.js";
 import { getMemorySearchManager } from "../../memory/index.js";
 import { parseAgentSessionKey } from "../../routing/session-key.js";
 import { resolveSessionAgentId } from "../agent-scope.js";
@@ -20,6 +19,13 @@ const MemoryGetSchema = Type.Object({
   path: Type.String(),
   from: Type.Optional(Type.Number()),
   lines: Type.Optional(Type.Number()),
+});
+
+const MemoryStoreSchema = Type.Object({
+  content: Type.String(),
+  summary: Type.Optional(Type.String()),
+  action: Type.Optional(Type.String()),
+  reasoning: Type.Optional(Type.String()),
 });
 
 export function createMemorySearchTool(options: {
@@ -41,7 +47,7 @@ export function createMemorySearchTool(options: {
     label: "Memory Search",
     name: "memory_search",
     description:
-      "Mandatory recall step: semantically search MEMORY.md + memory/*.md (and optional session transcripts) before answering questions about prior work, decisions, dates, people, preferences, or todos; returns top snippets with path + lines.",
+      "Mandatory recall step: semantically search Rice Storage + Rice State memory before answering questions about prior work, decisions, dates, people, preferences, or todos; returns top snippets with path + lines.",
     parameters: MemorySearchSchema,
     execute: async (_toolCallId, params) => {
       const query = readStringParam(params, "query", { required: true });
@@ -100,7 +106,7 @@ export function createMemoryGetTool(options: {
     label: "Memory Get",
     name: "memory_get",
     description:
-      "Safe snippet read from MEMORY.md or memory/*.md with optional from/lines; use after memory_search to pull only the needed lines and keep context small.",
+      "Read a snippet from a path returned by memory_search (Rice-backed). Optional from/lines keeps context small.",
     parameters: MemoryGetSchema,
     execute: async (_toolCallId, params) => {
       const relPath = readStringParam(params, "path", { required: true });
@@ -123,6 +129,63 @@ export function createMemoryGetTool(options: {
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         return jsonResult({ path: relPath, text: "", disabled: true, error: message });
+      }
+    },
+  };
+}
+
+export function createMemoryStoreTool(options: {
+  config?: OpenClawConfig;
+  agentSessionKey?: string;
+}): AnyAgentTool | null {
+  const cfg = options.config;
+  if (!cfg) {
+    return null;
+  }
+  const agentId = resolveSessionAgentId({
+    sessionKey: options.agentSessionKey,
+    config: cfg,
+  });
+  if (!resolveMemorySearchConfig(cfg, agentId)) {
+    return null;
+  }
+  return {
+    label: "Memory Store",
+    name: "memory_store",
+    description:
+      "Store durable information in Rice State long-term memory for the current agent context.",
+    parameters: MemoryStoreSchema,
+    execute: async (_toolCallId, params) => {
+      const content = readStringParam(params, "content", { required: true });
+      const summary = readStringParam(params, "summary");
+      const action = readStringParam(params, "action");
+      const reasoning = readStringParam(params, "reasoning");
+      const { manager, error } = await getMemorySearchManager({
+        cfg,
+        agentId,
+      });
+      if (!manager) {
+        return jsonResult({ ok: false, disabled: true, error });
+      }
+      if (!manager.store) {
+        return jsonResult({
+          ok: false,
+          disabled: true,
+          error: "memory backend does not support memory_store",
+        });
+      }
+      try {
+        const result = await manager.store({
+          input: content,
+          outcome: summary || "Stored in Rice state memory.",
+          action: action || "memory_store",
+          reasoning,
+          sessionKey: options.agentSessionKey,
+        });
+        return jsonResult(result);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return jsonResult({ ok: false, disabled: true, error: message });
       }
     },
   };
@@ -153,32 +216,6 @@ function formatCitation(entry: MemorySearchResult): string {
       ? `#L${entry.startLine}`
       : `#L${entry.startLine}-L${entry.endLine}`;
   return `${entry.path}${lineRange}`;
-}
-
-function clampResultsByInjectedChars(
-  results: MemorySearchResult[],
-  budget?: number,
-): MemorySearchResult[] {
-  if (!budget || budget <= 0) {
-    return results;
-  }
-  let remaining = budget;
-  const clamped: MemorySearchResult[] = [];
-  for (const entry of results) {
-    if (remaining <= 0) {
-      break;
-    }
-    const snippet = entry.snippet ?? "";
-    if (snippet.length <= remaining) {
-      clamped.push(entry);
-      remaining -= snippet.length;
-    } else {
-      const trimmed = snippet.slice(0, Math.max(0, remaining));
-      clamped.push({ ...entry, snippet: trimmed });
-      break;
-    }
-  }
-  return clamped;
 }
 
 function shouldIncludeCitations(params: {

@@ -21,6 +21,19 @@ export type MemorySyncProgressUpdate = {
   label?: string;
 };
 
+export type MemoryStoreRequest = {
+  input: string;
+  outcome?: string;
+  action?: string;
+  reasoning?: string;
+  sessionKey?: string;
+};
+
+export type MemoryStoreResult = {
+  ok: boolean;
+  provider?: string;
+};
+
 export type MemoryProviderStatus = {
   backend: "rice";
   provider: string;
@@ -40,6 +53,7 @@ export interface MemorySearchManager {
     from?: number;
     lines?: number;
   }): Promise<{ text: string; path: string }>;
+  store?(params: MemoryStoreRequest): Promise<MemoryStoreResult>;
   status(): MemoryProviderStatus;
   sync?(params?: {
     reason?: string;

@@ -1,10 +1,24 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { beforeAll, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { OpenClawConfig } from "../../../config/config.js";
 import type { HookHandler } from "../../hooks.js";
 import { makeTempWorkspace, writeWorkspaceFile } from "../../../test-helpers/workspace.js";
 import { createHookEvent } from "../../hooks.js";
+
+const riceMocks = vi.hoisted(() => {
+  const commit = vi.fn(async () => true);
+  const connect = vi.fn(async () => {});
+  const Client = vi.fn(function MockRiceClient(this: Record<string, unknown>) {
+    this.connect = connect;
+    this.state = { commit };
+  });
+  return { commit, connect, Client };
+});
+
+vi.mock("rice-node-sdk", () => ({
+  Client: riceMocks.Client,
+}));
 
 // Avoid calling the embedded Pi agent (global command lane); keep this unit test deterministic.
 vi.mock("../../llm-slug-generator.js", () => ({
@@ -17,8 +31,17 @@ beforeAll(async () => {
   ({ default: handler } = await import("./handler.js"));
 });
 
+beforeEach(() => {
+  vi.clearAllMocks();
+});
+
+afterEach(() => {
+  delete process.env.STORAGE_INSTANCE_URL;
+  delete process.env.STATE_INSTANCE_URL;
+});
+
 /**
- * Create a mock session JSONL file with various entry types
+ * Create a mock session JSONL file with various entry types.
  */
 function createMockSessionContent(
   entries: Array<{ role: string; content: string } | { type: string }>,
@@ -34,10 +57,17 @@ function createMockSessionContent(
           },
         });
       }
-      // Non-message entry (tool call, system, etc.)
       return JSON.stringify(entry);
     })
     .join("\n");
+}
+
+function latestCommittedInput(): string {
+  const call = riceMocks.commit.mock.calls.at(-1);
+  if (!call) {
+    throw new Error("expected commit to be called");
+  }
+  return String(call[0] ?? "");
 }
 
 describe("session-memory hook", () => {
@@ -50,9 +80,8 @@ describe("session-memory hook", () => {
 
     await handler(event);
 
-    // Memory directory should not be created for non-command events
-    const memoryDir = path.join(tempDir, "memory");
-    await expect(fs.access(memoryDir)).rejects.toThrow();
+    expect(riceMocks.connect).not.toHaveBeenCalled();
+    expect(riceMocks.commit).not.toHaveBeenCalled();
   });
 
   it("skips commands other than new", async () => {
@@ -64,17 +93,15 @@ describe("session-memory hook", () => {
 
     await handler(event);
 
-    // Memory directory should not be created for other commands
-    const memoryDir = path.join(tempDir, "memory");
-    await expect(fs.access(memoryDir)).rejects.toThrow();
+    expect(riceMocks.connect).not.toHaveBeenCalled();
+    expect(riceMocks.commit).not.toHaveBeenCalled();
   });
 
-  it("creates memory file with session content on /new command", async () => {
+  it("commits session content on /new command", async () => {
     const tempDir = await makeTempWorkspace("openclaw-session-memory-");
     const sessionsDir = path.join(tempDir, "sessions");
     await fs.mkdir(sessionsDir, { recursive: true });
 
-    // Create a mock session file with user/assistant messages
     const sessionContent = createMockSessionContent([
       { role: "user", content: "Hello there" },
       { role: "assistant", content: "Hi! How can I help?" },
@@ -101,17 +128,13 @@ describe("session-memory hook", () => {
 
     await handler(event);
 
-    // Memory file should be created
-    const memoryDir = path.join(tempDir, "memory");
-    const files = await fs.readdir(memoryDir);
-    expect(files.length).toBe(1);
-
-    // Read the memory file and verify content
-    const memoryContent = await fs.readFile(path.join(memoryDir, files[0]), "utf-8");
-    expect(memoryContent).toContain("user: Hello there");
-    expect(memoryContent).toContain("assistant: Hi! How can I help?");
-    expect(memoryContent).toContain("user: What is 2+2?");
-    expect(memoryContent).toContain("assistant: 2+2 equals 4");
+    expect(riceMocks.connect).toHaveBeenCalledTimes(1);
+    expect(riceMocks.commit).toHaveBeenCalledTimes(1);
+    const payload = latestCommittedInput();
+    expect(payload).toContain("Session key: agent:main:main");
+    expect(payload).toContain("Session id: test-123");
+    expect(payload).toContain("user: Hello there");
+    expect(payload).toContain("assistant: 2+2 equals 4");
   });
 
   it("filters out non-message entries (tool calls, system)", async () => {
@@ -119,12 +142,11 @@ describe("session-memory hook", () => {
     const sessionsDir = path.join(tempDir, "sessions");
     await fs.mkdir(sessionsDir, { recursive: true });
 
-    // Create session with mixed entry types
     const sessionContent = createMockSessionContent([
       { role: "user", content: "Hello" },
-      { type: "tool_use", tool: "search", input: "test" },
+      { type: "tool_use" },
       { role: "assistant", content: "World" },
-      { type: "tool_result", result: "found it" },
+      { type: "tool_result" },
       { role: "user", content: "Thanks" },
     ]);
     const sessionFile = await writeWorkspaceFile({
@@ -147,18 +169,12 @@ describe("session-memory hook", () => {
 
     await handler(event);
 
-    const memoryDir = path.join(tempDir, "memory");
-    const files = await fs.readdir(memoryDir);
-    const memoryContent = await fs.readFile(path.join(memoryDir, files[0]), "utf-8");
-
-    // Only user/assistant messages should be present
-    expect(memoryContent).toContain("user: Hello");
-    expect(memoryContent).toContain("assistant: World");
-    expect(memoryContent).toContain("user: Thanks");
-    // Tool entries should not appear
-    expect(memoryContent).not.toContain("tool_use");
-    expect(memoryContent).not.toContain("tool_result");
-    expect(memoryContent).not.toContain("search");
+    const payload = latestCommittedInput();
+    expect(payload).toContain("user: Hello");
+    expect(payload).toContain("assistant: World");
+    expect(payload).toContain("user: Thanks");
+    expect(payload).not.toContain("tool_use");
+    expect(payload).not.toContain("tool_result");
   });
 
   it("filters out command messages starting with /", async () => {
@@ -192,16 +208,11 @@ describe("session-memory hook", () => {
 
     await handler(event);
 
-    const memoryDir = path.join(tempDir, "memory");
-    const files = await fs.readdir(memoryDir);
-    const memoryContent = await fs.readFile(path.join(memoryDir, files[0]), "utf-8");
-
-    // Command messages should be filtered out
-    expect(memoryContent).not.toContain("/help");
-    expect(memoryContent).not.toContain("/new");
-    // Normal messages should be present
-    expect(memoryContent).toContain("assistant: Here is help info");
-    expect(memoryContent).toContain("user: Normal message");
+    const payload = latestCommittedInput();
+    expect(payload).not.toContain("/help");
+    expect(payload).not.toContain("/new");
+    expect(payload).toContain("assistant: Here is help info");
+    expect(payload).toContain("user: Normal message");
   });
 
   it("respects custom messages config (limits to N messages)", async () => {
@@ -209,9 +220,8 @@ describe("session-memory hook", () => {
     const sessionsDir = path.join(tempDir, "sessions");
     await fs.mkdir(sessionsDir, { recursive: true });
 
-    // Create 10 messages
     const entries = [];
-    for (let i = 1; i <= 10; i++) {
+    for (let i = 1; i <= 10; i += 1) {
       entries.push({ role: "user", content: `Message ${i}` });
     }
     const sessionContent = createMockSessionContent(entries);
@@ -221,7 +231,6 @@ describe("session-memory hook", () => {
       content: sessionContent,
     });
 
-    // Configure to only include last 3 messages
     const cfg: OpenClawConfig = {
       agents: { defaults: { workspace: tempDir } },
       hooks: {
@@ -243,16 +252,12 @@ describe("session-memory hook", () => {
 
     await handler(event);
 
-    const memoryDir = path.join(tempDir, "memory");
-    const files = await fs.readdir(memoryDir);
-    const memoryContent = await fs.readFile(path.join(memoryDir, files[0]), "utf-8");
-
-    // Only last 3 messages should be present
-    expect(memoryContent).not.toContain("user: Message 1\n");
-    expect(memoryContent).not.toContain("user: Message 7\n");
-    expect(memoryContent).toContain("user: Message 8");
-    expect(memoryContent).toContain("user: Message 9");
-    expect(memoryContent).toContain("user: Message 10");
+    const payload = latestCommittedInput();
+    expect(payload).not.toContain("user: Message 1\n");
+    expect(payload).not.toContain("user: Message 7\n");
+    expect(payload).toContain("user: Message 8");
+    expect(payload).toContain("user: Message 9");
+    expect(payload).toContain("user: Message 10");
   });
 
   it("filters messages before slicing (fix for #2681)", async () => {
@@ -260,18 +265,16 @@ describe("session-memory hook", () => {
     const sessionsDir = path.join(tempDir, "sessions");
     await fs.mkdir(sessionsDir, { recursive: true });
 
-    // Create session with many tool entries interspersed with messages
-    // This tests that we filter FIRST, then slice - not the other way around
     const entries = [
       { role: "user", content: "First message" },
-      { type: "tool_use", tool: "test1" },
-      { type: "tool_result", result: "result1" },
+      { type: "tool_use" },
+      { type: "tool_result" },
       { role: "assistant", content: "Second message" },
-      { type: "tool_use", tool: "test2" },
-      { type: "tool_result", result: "result2" },
+      { type: "tool_use" },
+      { type: "tool_result" },
       { role: "user", content: "Third message" },
-      { type: "tool_use", tool: "test3" },
-      { type: "tool_result", result: "result3" },
+      { type: "tool_use" },
+      { type: "tool_result" },
       { role: "assistant", content: "Fourth message" },
     ];
     const sessionContent = createMockSessionContent(entries);
@@ -281,8 +284,6 @@ describe("session-memory hook", () => {
       content: sessionContent,
     });
 
-    // Request 3 messages - if we sliced first, we'd only get 1-2 messages
-    // because the last 3 lines include tool entries
     const cfg: OpenClawConfig = {
       agents: { defaults: { workspace: tempDir } },
       hooks: {
@@ -304,15 +305,11 @@ describe("session-memory hook", () => {
 
     await handler(event);
 
-    const memoryDir = path.join(tempDir, "memory");
-    const files = await fs.readdir(memoryDir);
-    const memoryContent = await fs.readFile(path.join(memoryDir, files[0]), "utf-8");
-
-    // Should have exactly 3 user/assistant messages (the last 3)
-    expect(memoryContent).not.toContain("First message");
-    expect(memoryContent).toContain("user: Third message");
-    expect(memoryContent).toContain("assistant: Second message");
-    expect(memoryContent).toContain("assistant: Fourth message");
+    const payload = latestCommittedInput();
+    expect(payload).not.toContain("First message");
+    expect(payload).toContain("assistant: Second message");
+    expect(payload).toContain("user: Third message");
+    expect(payload).toContain("assistant: Fourth message");
   });
 
   it("handles empty session files gracefully", async () => {
@@ -338,33 +335,32 @@ describe("session-memory hook", () => {
       },
     });
 
-    // Should not throw
     await handler(event);
 
-    // Memory file should still be created with metadata
-    const memoryDir = path.join(tempDir, "memory");
-    const files = await fs.readdir(memoryDir);
-    expect(files.length).toBe(1);
+    expect(riceMocks.commit).toHaveBeenCalledTimes(1);
+    const payload = latestCommittedInput();
+    expect(payload).toContain("Session key: agent:main:main");
   });
 
-  it("handles session files with fewer messages than requested", async () => {
+  it("uses configured Rice endpoint and runId", async () => {
     const tempDir = await makeTempWorkspace("openclaw-session-memory-");
     const sessionsDir = path.join(tempDir, "sessions");
     await fs.mkdir(sessionsDir, { recursive: true });
 
-    // Only 2 messages but requesting 15 (default)
-    const sessionContent = createMockSessionContent([
-      { role: "user", content: "Only message 1" },
-      { role: "assistant", content: "Only message 2" },
-    ]);
     const sessionFile = await writeWorkspaceFile({
       dir: sessionsDir,
       name: "test-session.jsonl",
-      content: sessionContent,
+      content: createMockSessionContent([{ role: "user", content: "hello" }]),
     });
 
     const cfg: OpenClawConfig = {
       agents: { defaults: { workspace: tempDir } },
+      memory: {
+        rice: {
+          endpoint: "127.0.0.1:50059",
+          runId: "agent-memory-main",
+        },
+      },
     };
 
     const event = createHookEvent("command", "new", "agent:main:main", {
@@ -377,12 +373,13 @@ describe("session-memory hook", () => {
 
     await handler(event);
 
-    const memoryDir = path.join(tempDir, "memory");
-    const files = await fs.readdir(memoryDir);
-    const memoryContent = await fs.readFile(path.join(memoryDir, files[0]), "utf-8");
-
-    // Both messages should be included
-    expect(memoryContent).toContain("user: Only message 1");
-    expect(memoryContent).toContain("assistant: Only message 2");
+    expect(riceMocks.Client).toHaveBeenCalledWith(
+      expect.objectContaining({
+        configPath: expect.any(String),
+        runId: "agent-memory-main",
+      }),
+    );
+    expect(process.env.STORAGE_INSTANCE_URL).toBe("127.0.0.1:50059");
+    expect(process.env.STATE_INSTANCE_URL).toBe("127.0.0.1:50059");
   });
 });

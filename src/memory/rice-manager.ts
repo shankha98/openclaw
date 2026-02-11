@@ -43,9 +43,14 @@ export class RiceMemoryManager implements MemorySearchManager {
     }
 
     const riceConfigPath = await ensureRiceSdkConfigPath();
+    const runId = config.rice.runId?.trim() || params.agentId;
+    const stateRunId = config.rice.stateRunId?.trim() || undefined;
+    const storageRunId = config.rice.storageRunId?.trim() || undefined;
     const client = new Client({
       configPath: riceConfigPath,
-      runId: config.rice.runId || params.agentId,
+      runId,
+      stateRunId,
+      storageRunId,
     });
 
     // Override endpoint if provided in config
@@ -102,9 +107,13 @@ export class RiceMemoryManager implements MemorySearchManager {
           continue;
         }
         const idValue = stringifyId(anyItem.id) ?? hashText(text).slice(0, 16);
+        const metadataPath = readNonEmptyString(metadata.path);
+        // Keep citations in Rice namespace even when legacy records carry file-like paths
+        // (for example MEMORY.md from earlier local-index pipelines).
         const path =
-          readNonEmptyString(metadata.path) ??
-          `${STORAGE_PATH_PREFIX}${encodeURIComponent(idValue)}`;
+          metadataPath && metadataPath.startsWith("rice:")
+            ? metadataPath
+            : `${STORAGE_PATH_PREFIX}${encodeURIComponent(idValue)}`;
         const startLine = asPositiveInt(metadata.startLine) ?? 1;
         const endLine = asPositiveInt(metadata.endLine) ?? countLines(text);
         const score = asNumber(anyItem.similarity) ?? asNumber(anyItem.score) ?? 0;

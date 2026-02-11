@@ -78,7 +78,7 @@ describe("RiceMemoryManager", () => {
         similarity: 0.92,
         data: "Storage memory line",
         metadata: {
-          path: "rice:storage/custom",
+          path: "MEMORY.md",
           startLine: 3,
           endLine: 3,
         },
@@ -107,12 +107,12 @@ describe("RiceMemoryManager", () => {
 
     const results = await manager.search("metric preferences", { maxResults: 5 });
     expect(results.length).toBe(2);
-    expect(results[0]?.path).toBe("rice:storage/custom");
+    expect(results[0]?.path).toBe("rice:storage/42");
     const stateResult = results.find((entry) => entry.path.startsWith("rice:state/"));
     expect(stateResult).toBeDefined();
 
-    await expect(manager.readFile({ relPath: "rice:storage/custom" })).resolves.toEqual({
-      path: "rice:storage/custom",
+    await expect(manager.readFile({ relPath: "rice:storage/42" })).resolves.toEqual({
+      path: "rice:storage/42",
       text: "Storage memory line",
     });
 
@@ -201,6 +201,37 @@ describe("RiceMemoryManager", () => {
       ok: true,
       provider: "rice-node-sdk",
     });
+
+    await manager.close();
+  });
+
+  it("passes split state/storage run IDs to unified Rice client", async () => {
+    riceMocks.storageSearch.mockResolvedValueOnce([]);
+    riceMocks.stateReminisce.mockResolvedValueOnce([]);
+
+    const cfg = buildConfig();
+    if (!cfg.memory?.rice) {
+      throw new Error("missing rice config");
+    }
+    Object.assign(cfg.memory.rice, {
+      runId: "shared-run",
+      stateRunId: "state-run-only",
+      storageRunId: "storage-run-only",
+    });
+
+    const manager = await RiceMemoryManager.create({
+      cfg,
+      agentId: "main",
+    });
+
+    expect(riceMocks.Client).toHaveBeenCalledWith(
+      expect.objectContaining({
+        configPath: expect.any(String),
+        runId: "shared-run",
+        stateRunId: "state-run-only",
+        storageRunId: "storage-run-only",
+      }),
+    );
 
     await manager.close();
   });

@@ -1,5 +1,3 @@
-import type { SessionSendPolicyConfig } from "./types.base.js";
-
 export type MemoryBackend = "rice";
 export type MemoryCitationsMode = "auto" | "on" | "off";
 
@@ -13,6 +11,8 @@ export type MemoryRiceConfig = {
   enabled?: boolean;
   endpoint?: string;
   runId?: string;
+  stateRunId?: string;
+  storageRunId?: string;
   sync?: {
     enabled?: boolean;
     interval?: string;

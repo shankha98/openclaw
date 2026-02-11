@@ -25,7 +25,7 @@ When you run `/new` to start a fresh session:
 1. **Finds the previous session** - Uses the pre-reset session entry to locate the correct transcript
 2. **Extracts conversation** - Reads the last N user/assistant messages from the session (default: 15, configurable)
 3. **Generates descriptive slug** - Uses LLM to create a meaningful tag based on conversation content
-4. **Commits to Rice State** - Stores the snapshot with `state.commit(...)` for the active runId
+4. **Commits to Rice State** - Stores the snapshot with `state.commit(...)` for the active state run isolation
 5. **No local memory files** - Does not create `MEMORY.md` or `memory/*.md`
 
 ## Stored Format

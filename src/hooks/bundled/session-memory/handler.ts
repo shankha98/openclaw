@@ -154,7 +154,10 @@ const saveSessionToMemory: HookHandler = async (event) => {
     }
 
     const entry = entryParts.join("\n").trim();
-    const riceRunId = cfg?.memory?.rice?.runId?.trim() || event.sessionKey || agentId || "main";
+    const configuredSharedRunId = cfg?.memory?.rice?.runId?.trim();
+    const configuredStateRunId = cfg?.memory?.rice?.stateRunId?.trim();
+    const riceStateRunId =
+      configuredStateRunId || configuredSharedRunId || event.sessionKey || agentId || "main";
 
     // Keep endpoint override behavior consistent with RiceMemoryManager.
     const riceEndpoint = cfg?.memory?.rice?.endpoint?.trim();
@@ -164,7 +167,11 @@ const saveSessionToMemory: HookHandler = async (event) => {
     }
 
     const riceConfigPath = await ensureRiceSdkConfigPath();
-    const client = new Client({ configPath: riceConfigPath, runId: riceRunId });
+    const client = new Client({
+      configPath: riceConfigPath,
+      runId: configuredSharedRunId || riceStateRunId,
+      stateRunId: riceStateRunId,
+    });
     await client.connect();
     await client.state.commit(entry, "Session context captured via session-memory hook", {
       action: "session_memory",
@@ -172,7 +179,7 @@ const saveSessionToMemory: HookHandler = async (event) => {
       agent_id: agentId || "main",
     });
 
-    log.info(`Session context committed to Rice state (runId=${riceRunId})`);
+    log.info(`Session context committed to Rice state (stateRunId=${riceStateRunId})`);
   } catch (err) {
     if (err instanceof Error) {
       log.error("Failed to save session memory", {

@@ -1,10 +1,5 @@
-import path from "node:path";
 import type { OpenClawConfig } from "../config/config.js";
-import type {
-  MemoryBackend,
-  MemoryCitationsMode,
-  MemoryRiceConfig,
-} from "../config/types.memory.js";
+import type { MemoryBackend, MemoryCitationsMode } from "../config/types.memory.js";
 import { parseDurationMs } from "../cli/parse-duration.js";
 
 export type ResolvedMemoryBackendConfig = {
@@ -17,13 +12,14 @@ export type ResolvedRiceConfig = {
   enabled: boolean;
   endpoint?: string;
   runId?: string;
+  stateRunId?: string;
+  storageRunId?: string;
   sync: {
     enabled: boolean;
     intervalMs: number;
   };
 };
 
-const DEFAULT_BACKEND: MemoryBackend = "rice";
 const DEFAULT_CITATIONS: MemoryCitationsMode = "auto";
 const DEFAULT_RICE_SYNC_INTERVAL = "1m";
 
@@ -54,6 +50,8 @@ export function resolveMemoryBackendConfig(params: {
       enabled: rice?.enabled !== false,
       endpoint: rice?.endpoint,
       runId: rice?.runId,
+      stateRunId: rice?.stateRunId,
+      storageRunId: rice?.storageRunId,
       sync: {
         enabled: rice?.sync?.enabled !== false,
         intervalMs: resolveIntervalMs(rice?.sync?.interval || DEFAULT_RICE_SYNC_INTERVAL),

@@ -5,12 +5,7 @@ import { ApprovalsSchema } from "./zod-schema.approvals.js";
 import { HexColorSchema, ModelsConfigSchema } from "./zod-schema.core.js";
 import { HookMappingSchema, HooksGmailSchema, InternalHooksSchema } from "./zod-schema.hooks.js";
 import { ChannelsSchema } from "./zod-schema.providers.js";
-import {
-  CommandsSchema,
-  MessagesSchema,
-  SessionSchema,
-  SessionSendPolicySchema,
-} from "./zod-schema.session.js";
+import { CommandsSchema, MessagesSchema, SessionSchema } from "./zod-schema.session.js";
 
 const BrowserSnapshotDefaultsSchema = z
   .object({
@@ -44,6 +39,8 @@ const MemoryRiceSchema = z
     enabled: z.boolean().optional(),
     endpoint: z.string().optional(),
     runId: z.string().optional(),
+    stateRunId: z.string().optional(),
+    storageRunId: z.string().optional(),
     sync: MemoryRiceSyncSchema.optional(),
   })
   .strict();

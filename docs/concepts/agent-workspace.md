@@ -99,7 +99,7 @@ These are the standard files OpenClaw expects inside the workspace:
 
 - `memory/` and `MEMORY.md` (optional notes)
   - Optional workspace notes only.
-  - Not used as the durable memory backend.
+  - Not used as the durable memory backend and not queried by Rice memory tools.
   - Durable memory uses Rice State and Rice Storage.
 
 See [Memory](/concepts/memory) for the workflow and automatic memory flush.

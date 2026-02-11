@@ -259,6 +259,15 @@ const FIELD_LABELS: Record<string, string> = {
   memory: "Memory",
   "memory.backend": "Memory Backend",
   "memory.citations": "Memory Citations Mode",
+  "memory.rice": "Rice Memory",
+  "memory.rice.enabled": "Enable Rice Memory",
+  "memory.rice.endpoint": "Rice Endpoint",
+  "memory.rice.runId": "Rice Shared Run ID",
+  "memory.rice.stateRunId": "Rice State Run ID",
+  "memory.rice.storageRunId": "Rice Storage Run ID",
+  "memory.rice.sync": "Rice Sync",
+  "memory.rice.sync.enabled": "Enable Rice Sync",
+  "memory.rice.sync.interval": "Rice Sync Interval",
   "memory.qmd.command": "QMD Binary",
   "memory.qmd.includeDefaultMemory": "QMD Include Default Memory",
   "memory.qmd.paths": "QMD Extra Paths",
@@ -584,8 +593,18 @@ const FIELD_HELP: Record<string, string> = {
   "agents.defaults.memorySearch.cache.enabled":
     "Cache chunk embeddings in SQLite to speed up reindexing and frequent updates (default: true).",
   memory: "Memory backend configuration (global).",
-  "memory.backend": 'Memory backend ("builtin" for OpenClaw embeddings, "qmd" for QMD sidecar).',
+  "memory.backend": 'Memory backend ("rice").',
   "memory.citations": 'Default citation behavior ("auto", "on", or "off").',
+  "memory.rice.enabled": "Enable Rice memory integration (default: true).",
+  "memory.rice.endpoint":
+    "Optional shared endpoint for both State and Storage (sets STATE_INSTANCE_URL + STORAGE_INSTANCE_URL).",
+  "memory.rice.runId": "Optional shared run ID for State + Storage isolation.",
+  "memory.rice.stateRunId": "Optional run ID override for State operations.",
+  "memory.rice.storageRunId": "Optional run ID override for Storage operations.",
+  "memory.rice.sync.enabled":
+    "Enable Rice sync status reporting (no local file indexing; default: true).",
+  "memory.rice.sync.interval":
+    "Status sync interval for Rice memory backend (duration string, default: 1m).",
   "memory.qmd.command": "Path to the qmd binary (default: resolves from PATH).",
   "memory.qmd.includeDefaultMemory":
     "Whether to automatically index MEMORY.md + memory/**/*.md (default: true).",

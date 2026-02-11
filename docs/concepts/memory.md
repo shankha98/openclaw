@@ -39,7 +39,9 @@ Memory config lives under `memory` in `openclaw.json`.
     rice: {
       enabled: true,
       endpoint: "host:port", // optional; sets both STATE_INSTANCE_URL and STORAGE_INSTANCE_URL
-      runId: "agent-memory-main", // optional
+      runId: "agent-memory-main", // optional shared runId for State + Storage
+      stateRunId: "agent-memory-state", // optional override for State only
+      storageRunId: "agent-memory-storage", // optional override for Storage only
       sync: {
         enabled: true,
         interval: "1m",
@@ -54,7 +56,8 @@ Notes:
 - `backend` is `rice`.
 - `citations` controls whether snippet sources are included in memory snippets.
 - `rice.endpoint` is an OpenClaw convenience override for both Rice services.
-- `rice.runId` sets the default State run context.
+- `rice.runId` sets the shared default isolation boundary for State + Storage.
+- `rice.stateRunId` and `rice.storageRunId` optionally override isolation per service.
 
 ## Environment variables
 
@@ -65,6 +68,7 @@ Rice SDK auth and endpoints are read from environment variables:
 - `STATE_RUN_ID` (optional)
 - `STORAGE_INSTANCE_URL`
 - `STORAGE_AUTH_TOKEN`
+- `STORAGE_RUN_ID` (optional)
 - `STORAGE_USER` (optional; default `admin`)
 - `STORAGE_HTTP_PORT` (optional)
 
@@ -76,6 +80,7 @@ You can define these in `.env`.
 - OpenClaw now provides an internal generated Rice SDK config path, so a workspace `rice.config.js` file is not required.
 - `session-memory` hook commits session snapshots to Rice State on `/new`.
 - Memory sync is remote-aware; there is no local Markdown indexing pipeline for durable memory.
+- `memory_search` results are Rice-backed. Storage citations are normalized to `rice:storage/<id>` so legacy file-like metadata paths are not treated as local memory files.
 
 ## Validation
 

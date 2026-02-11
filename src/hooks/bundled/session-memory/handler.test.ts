@@ -342,7 +342,7 @@ describe("session-memory hook", () => {
     expect(payload).toContain("Session key: agent:main:main");
   });
 
-  it("uses configured Rice endpoint and runId", async () => {
+  it("uses configured Rice endpoint and stateRunId", async () => {
     const tempDir = await makeTempWorkspace("openclaw-session-memory-");
     const sessionsDir = path.join(tempDir, "sessions");
     await fs.mkdir(sessionsDir, { recursive: true });
@@ -358,7 +358,8 @@ describe("session-memory hook", () => {
       memory: {
         rice: {
           endpoint: "127.0.0.1:50059",
-          runId: "agent-memory-main",
+          runId: "agent-memory-shared",
+          stateRunId: "agent-memory-state",
         },
       },
     };
@@ -376,7 +377,8 @@ describe("session-memory hook", () => {
     expect(riceMocks.Client).toHaveBeenCalledWith(
       expect.objectContaining({
         configPath: expect.any(String),
-        runId: "agent-memory-main",
+        runId: "agent-memory-shared",
+        stateRunId: "agent-memory-state",
       }),
     );
     expect(process.env.STORAGE_INSTANCE_URL).toBe("127.0.0.1:50059");

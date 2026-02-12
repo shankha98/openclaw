@@ -72,6 +72,40 @@ const storageInstanceUrl = process.env.ORCH_STORAGE_INSTANCE_URL?.trim();
 const storageAuthToken = process.env.ORCH_STORAGE_AUTH_TOKEN?.trim();
 const storageHttpPort = process.env.ORCH_STORAGE_HTTP_PORT?.trim();
 const retentionRaw = (process.env.ORCH_RETENTION ?? "7d").trim();
+const shouldValidateExternalDelivery =
+  (process.env.ORCH_EXT_VALIDATE_EXTERNAL_DELIVERY ?? "0").trim() === "1";
+const deliverChannel = process.env.ORCH_DELIVER_CHANNEL?.trim();
+const deliverTo = process.env.ORCH_DELIVER_TO?.trim();
+const deliverTimeoutMs = parsePositiveInt(process.env.ORCH_DELIVER_TIMEOUT_MS, 120_000);
+const requireOkResults = (process.env.ORCH_REQUIRE_OK_RESULTS ?? "1").trim() !== "0";
+const connectChallengeTimeoutMs = parsePositiveInt(
+  process.env.ORCH_EXT_CONNECT_CHALLENGE_TIMEOUT_MS,
+  1_000,
+);
+const connectRpcTimeoutMs = parsePositiveInt(process.env.ORCH_EXT_CONNECT_TIMEOUT_MS, 60_000);
+const statusRpcTimeoutMs = parsePositiveInt(process.env.ORCH_EXT_STATUS_RPC_TIMEOUT_MS, 20_000);
+const dispatchRpcTimeoutMs = parsePositiveInt(process.env.ORCH_EXT_DISPATCH_RPC_TIMEOUT_MS, 30_000);
+const taskTimeoutMs = parsePositiveInt(process.env.ORCH_EXT_TASK_TIMEOUT_MS, 120_000);
+const liveWaitTimeoutMs = parsePositiveInt(process.env.ORCH_EXT_LIVE_WAIT_TIMEOUT_MS, 60_000);
+const burstResultsTimeoutMs = parsePositiveInt(
+  process.env.ORCH_EXT_BURST_RESULTS_TIMEOUT_MS,
+  180_000,
+);
+const failoverOfflineWaitTimeoutMs = parsePositiveInt(
+  process.env.ORCH_EXT_FAILOVER_OFFLINE_WAIT_TIMEOUT_MS,
+  45_000,
+);
+const observerResultTimeoutMs = parsePositiveInt(
+  process.env.ORCH_EXT_OBSERVER_RESULT_TIMEOUT_MS,
+  6_000,
+);
+const retentionMaxMs = parsePositiveInt(process.env.ORCH_EXT_RETENTION_MAX_MS, 120_000);
+const retentionWaitFloorMs = parsePositiveInt(process.env.ORCH_EXT_RETENTION_WAIT_FLOOR_MS, 60_000);
+const retentionExtraWaitMs = parsePositiveInt(process.env.ORCH_EXT_RETENTION_EXTRA_WAIT_MS, 45_000);
+const externalResultBufferMs = parsePositiveInt(
+  process.env.ORCH_EXT_EXTERNAL_RESULT_BUFFER_MS,
+  60_000,
+);
 
 if (!gatewayUrl || !gatewayToken || !runId) {
   throw new Error("missing ORCH_GATEWAY_URL/ORCH_GATEWAY_TOKEN/ORCH_RUN_ID");
@@ -184,7 +218,9 @@ class GatewayClient {
       try {
         const ws = await openWebSocket(params.url);
         client = new GatewayClient(ws);
-        await client.waitEvent("connect.challenge", () => true, 1_000).catch(() => undefined);
+        await client
+          .waitEvent("connect.challenge", () => true, connectChallengeTimeoutMs)
+          .catch(() => undefined);
         const connect = await client.rpc(
           "connect",
           {
@@ -202,7 +238,7 @@ class GatewayClient {
             caps: [],
             auth: { token: params.token },
           },
-          25_000,
+          connectRpcTimeoutMs,
         );
         if (!connect.ok) {
           throw new Error(`connect failed: ${frameErrorMessage(connect)}`);
@@ -406,7 +442,7 @@ class GatewayClient {
 }
 
 async function orchestrationStatus(client: GatewayClient): Promise<OrchestrationStatusResult> {
-  const res = await client.rpc("orchestration.status", {}, 20_000);
+  const res = await client.rpc("orchestration.status", {}, statusRpcTimeoutMs);
   if (!res.ok) {
     throw new Error(`orchestration.status failed: ${frameErrorMessage(res)}`);
   }
@@ -434,7 +470,7 @@ async function waitForStatus(
 async function waitForLiveWorkers(
   client: GatewayClient,
   workers: string[],
-  timeoutMs = 60_000,
+  timeoutMs = liveWaitTimeoutMs,
 ): Promise<OrchestrationStatusResult> {
   return await waitForStatus(
     client,
@@ -452,10 +488,12 @@ async function dispatchTask(
     sessionKey: string;
     targetWorkerId?: string;
     deliver?: boolean;
+    to?: string;
+    channel?: string;
     timeoutMs?: number;
   },
 ): Promise<OrchestrationDispatchResult> {
-  const res = await client.rpc("orchestration.dispatch", params, 30_000);
+  const res = await client.rpc("orchestration.dispatch", params, dispatchRpcTimeoutMs);
   if (!res.ok) {
     throw new Error(`orchestration.dispatch failed: ${frameErrorMessage(res)}`);
   }
@@ -465,7 +503,7 @@ async function dispatchTask(
 async function waitForTaskResult(
   client: GatewayClient,
   taskId: string,
-  timeoutMs = 120_000,
+  timeoutMs = taskTimeoutMs,
 ): Promise<OrchestrationResultEvent> {
   return await client.waitEvent<OrchestrationResultEvent>(
     "orchestration.result",
@@ -518,6 +556,16 @@ async function waitForAllTaskResults(
     results.set(result.taskId, result);
   }
   return results;
+}
+
+function assertResultOk(result: OrchestrationResultEvent, label: string): void {
+  if (!requireOkResults) {
+    return;
+  }
+  assertCondition(
+    result.status === "ok",
+    `${label} expected status=ok, got ${result.status}: ${JSON.stringify(result)}`,
+  );
 }
 
 function configureRiceEnvForReadback(): void {
@@ -612,7 +660,7 @@ async function phaseBaseline(): Promise<void> {
   });
 
   try {
-    await waitForLiveWorkers(primary, ["worker-a", "worker-b"], 60_000);
+    await waitForLiveWorkers(primary, ["worker-a", "worker-b"], liveWaitTimeoutMs);
     console.log("[extended] both workers live");
 
     const workflowPrefix = randomKey("workflow");
@@ -622,7 +670,7 @@ async function phaseBaseline(): Promise<void> {
       sessionKey: "agent:main:main",
       targetWorkerId: "worker-a",
       deliver: false,
-      timeoutMs: 120_000,
+      timeoutMs: taskTimeoutMs,
     });
     const stepB = await dispatchTask(primary, {
       idempotencyKey: `${workflowPrefix}-step-b`,
@@ -630,7 +678,7 @@ async function phaseBaseline(): Promise<void> {
       sessionKey: "agent:main:main",
       targetWorkerId: "worker-b",
       deliver: false,
-      timeoutMs: 120_000,
+      timeoutMs: taskTimeoutMs,
     });
     assertCondition(
       stepA.status === "accepted",
@@ -647,6 +695,8 @@ async function phaseBaseline(): Promise<void> {
     const stepBResult = await waitForTaskResult(primary, stepB.taskId);
     assertCondition(stepAResult.targetWorkerId === "worker-a", "stepA result target mismatch");
     assertCondition(stepBResult.targetWorkerId === "worker-b", "stepB result target mismatch");
+    assertResultOk(stepAResult, "baseline stepA");
+    assertResultOk(stepBResult, "baseline stepB");
     console.log("[extended] targeted split workflow completed");
 
     const isolated = await dispatchTask(primary, {
@@ -654,20 +704,25 @@ async function phaseBaseline(): Promise<void> {
       message: "requester fanout isolation check",
       sessionKey: "agent:main:main",
       deliver: false,
-      timeoutMs: 120_000,
+      timeoutMs: taskTimeoutMs,
     });
     assertCondition(
       isolated.status === "accepted",
       `expected accepted isolation dispatch: ${JSON.stringify(isolated)}`,
     );
     const requesterResultPromise = waitForTaskResult(primary, isolated.taskId);
-    const observerResultPromise = waitForTaskResultOrNull(observer, isolated.taskId, 6_000);
+    const observerResultPromise = waitForTaskResultOrNull(
+      observer,
+      isolated.taskId,
+      observerResultTimeoutMs,
+    );
     const requesterResult = await requesterResultPromise;
     const observerResult = await observerResultPromise;
     assertCondition(
       requesterResult.taskId === isolated.taskId,
       "requester did not receive expected result event",
     );
+    assertResultOk(requesterResult, "baseline requester fanout");
     assertCondition(
       observerResult === null,
       `observer unexpectedly received requester-specific result: ${JSON.stringify(observerResult)}`,
@@ -683,7 +738,7 @@ async function phaseBaseline(): Promise<void> {
             message: `burst task ${idempotencyKey}`,
             sessionKey: "agent:main:main",
             deliver: false,
-            timeoutMs: 120_000,
+            timeoutMs: taskTimeoutMs,
           }),
       ),
     );
@@ -707,11 +762,14 @@ async function phaseBaseline(): Promise<void> {
       Math.abs(countA - countB) <= 1,
       `burst routing not balanced (expected round-robin): worker-a=${countA}, worker-b=${countB}`,
     );
-    await waitForAllTaskResults(
+    const burstResults = await waitForAllTaskResults(
       primary,
       burstDispatches.map((item) => item.taskId),
-      180_000,
+      burstResultsTimeoutMs,
     );
+    for (const result of burstResults.values()) {
+      assertResultOk(result, "baseline burst");
+    }
     console.log(`[extended] burst routing/results verified (${burstCount} tasks)`);
 
     const dedupeKey = randomKey("dedupe");
@@ -720,7 +778,7 @@ async function phaseBaseline(): Promise<void> {
       message: "dedupe warm-up",
       sessionKey: "agent:main:main",
       deliver: false,
-      timeoutMs: 120_000,
+      timeoutMs: taskTimeoutMs,
     });
     assertCondition(
       first.status === "accepted",
@@ -735,7 +793,7 @@ async function phaseBaseline(): Promise<void> {
             message: "dedupe warm-up",
             sessionKey: "agent:main:main",
             deliver: false,
-            timeoutMs: 120_000,
+            timeoutMs: taskTimeoutMs,
           }),
       ),
     );
@@ -749,7 +807,8 @@ async function phaseBaseline(): Promise<void> {
         `dedupe taskId mismatch: ${JSON.stringify(duplicate)}`,
       );
     }
-    await waitForTaskResult(primary, first.taskId, 120_000);
+    const dedupeResult = await waitForTaskResult(primary, first.taskId, taskTimeoutMs);
+    assertResultOk(dedupeResult, "baseline dedupe");
     console.log("[extended] concurrent dedupe after initial acceptance verified");
 
     await assertResultPersisted(stepA.taskId);
@@ -771,7 +830,7 @@ async function phaseWorkerBDown(): Promise<void> {
       primary,
       (status) =>
         status.liveWorkers.includes("worker-a") && !status.liveWorkers.includes("worker-b"),
-      45_000,
+      failoverOfflineWaitTimeoutMs,
       "worker-b to be considered offline",
     );
     console.log("[extended] worker-b marked offline by heartbeat TTL");
@@ -785,7 +844,7 @@ async function phaseWorkerBDown(): Promise<void> {
         targetWorkerId: "worker-b",
         deliver: false,
       },
-      20_000,
+      statusRpcTimeoutMs,
     );
     assertCondition(
       !targetedDown.ok,
@@ -806,7 +865,7 @@ async function phaseWorkerBDown(): Promise<void> {
             message: `failover task ${idx}`,
             sessionKey: "agent:main:main",
             deliver: false,
-            timeoutMs: 120_000,
+            timeoutMs: taskTimeoutMs,
           }),
       ),
     );
@@ -820,11 +879,14 @@ async function phaseWorkerBDown(): Promise<void> {
         `failover routed to non-live worker: ${JSON.stringify(item)}`,
       );
     }
-    await waitForAllTaskResults(
+    const failoverResults = await waitForAllTaskResults(
       primary,
       failoverDispatches.map((item) => item.taskId),
-      180_000,
+      burstResultsTimeoutMs,
     );
+    for (const result of failoverResults.values()) {
+      assertResultOk(result, "worker-b-down failover");
+    }
     console.log("[extended] failover routing to worker-a verified");
   } finally {
     await primary.close();
@@ -838,7 +900,7 @@ async function phaseWorkerBUp(): Promise<void> {
     label: "worker-b-up",
   });
   try {
-    await waitForLiveWorkers(primary, ["worker-a", "worker-b"], 60_000);
+    await waitForLiveWorkers(primary, ["worker-a", "worker-b"], liveWaitTimeoutMs);
     console.log("[extended] worker-b recovered");
 
     const targetB = await dispatchTask(primary, {
@@ -847,7 +909,7 @@ async function phaseWorkerBUp(): Promise<void> {
       sessionKey: "agent:main:main",
       targetWorkerId: "worker-b",
       deliver: false,
-      timeoutMs: 120_000,
+      timeoutMs: taskTimeoutMs,
     });
     assertCondition(
       targetB.status === "accepted",
@@ -857,11 +919,12 @@ async function phaseWorkerBUp(): Promise<void> {
       targetB.targetWorkerId === "worker-b",
       `target worker-b routed incorrectly: ${JSON.stringify(targetB)}`,
     );
-    const resultB = await waitForTaskResult(primary, targetB.taskId, 120_000);
+    const resultB = await waitForTaskResult(primary, targetB.taskId, taskTimeoutMs);
     assertCondition(
       resultB.targetWorkerId === "worker-b",
       `result target mismatch for worker-b recovery: ${JSON.stringify(resultB)}`,
     );
+    assertResultOk(resultB, "worker-b-up targetB");
 
     const targetA = await dispatchTask(primary, {
       idempotencyKey: randomKey("recover-a"),
@@ -869,7 +932,7 @@ async function phaseWorkerBUp(): Promise<void> {
       sessionKey: "agent:main:main",
       targetWorkerId: "worker-a",
       deliver: false,
-      timeoutMs: 120_000,
+      timeoutMs: taskTimeoutMs,
     });
     assertCondition(
       targetA.status === "accepted",
@@ -879,11 +942,12 @@ async function phaseWorkerBUp(): Promise<void> {
       targetA.targetWorkerId === "worker-a",
       `target worker-a routed incorrectly: ${JSON.stringify(targetA)}`,
     );
-    const resultA = await waitForTaskResult(primary, targetA.taskId, 120_000);
+    const resultA = await waitForTaskResult(primary, targetA.taskId, taskTimeoutMs);
     assertCondition(
       resultA.targetWorkerId === "worker-a",
       `result target mismatch for worker-a sanity: ${JSON.stringify(resultA)}`,
     );
+    assertResultOk(resultA, "worker-b-up targetA");
     console.log("[extended] both workers execute targeted tasks after recovery");
   } finally {
     await primary.close();
@@ -897,7 +961,7 @@ async function phasePostOrchestratorRestart(): Promise<void> {
     label: "post-orchestrator-restart",
   });
   try {
-    const status = await waitForLiveWorkers(primary, ["worker-a", "worker-b"], 60_000);
+    const status = await waitForLiveWorkers(primary, ["worker-a", "worker-b"], liveWaitTimeoutMs);
     assertCondition(status.enabled === true, "orchestration should stay enabled after restart");
     assertCondition(
       status.role === "orchestrator",
@@ -909,13 +973,14 @@ async function phasePostOrchestratorRestart(): Promise<void> {
       message: "post orchestrator restart task",
       sessionKey: "agent:main:main",
       deliver: false,
-      timeoutMs: 120_000,
+      timeoutMs: taskTimeoutMs,
     });
     assertCondition(
       dispatch.status === "accepted",
       `post-restart dispatch failed: ${JSON.stringify(dispatch)}`,
     );
-    await waitForTaskResult(primary, dispatch.taskId, 120_000);
+    const result = await waitForTaskResult(primary, dispatch.taskId, taskTimeoutMs);
+    assertResultOk(result, "post-orchestrator-restart");
     console.log("[extended] orchestrator restart resilience verified");
   } finally {
     await primary.close();
@@ -925,8 +990,8 @@ async function phasePostOrchestratorRestart(): Promise<void> {
 async function phaseRetentionCleanup(): Promise<void> {
   const retentionMs = parseRetentionMsOrThrow(retentionRaw);
   assertCondition(
-    retentionMs <= 120_000,
-    `retention phase expects ORCH_RETENTION <= 120s, got "${retentionRaw}"`,
+    retentionMs <= retentionMaxMs,
+    `retention phase expects ORCH_RETENTION <= ${retentionMaxMs}ms, got "${retentionRaw}"`,
   );
 
   const primary = await GatewayClient.connect({
@@ -935,21 +1000,22 @@ async function phaseRetentionCleanup(): Promise<void> {
     label: "retention-cleanup",
   });
   try {
-    await waitForLiveWorkers(primary, ["worker-a", "worker-b"], 60_000);
+    await waitForLiveWorkers(primary, ["worker-a", "worker-b"], liveWaitTimeoutMs);
     const idempotencyKey = randomKey("retention");
     const dispatch = await dispatchTask(primary, {
       idempotencyKey,
       message: "retention cleanup verification task",
       sessionKey: "agent:main:main",
       deliver: false,
-      timeoutMs: 120_000,
+      timeoutMs: taskTimeoutMs,
     });
     assertCondition(
       dispatch.status === "accepted",
       `retention dispatch failed: ${JSON.stringify(dispatch)}`,
     );
-    const result = await waitForTaskResult(primary, dispatch.taskId, 120_000);
+    const result = await waitForTaskResult(primary, dispatch.taskId, taskTimeoutMs);
     assertCondition(result.taskId === dispatch.taskId, "retention result mismatch");
+    assertResultOk(result, "retention-cleanup");
 
     const taskKey = `oc.orch.task.${dispatch.taskId}`;
     const resultKey = `oc.orch.result.${dispatch.taskId}`;
@@ -965,9 +1031,55 @@ async function phaseRetentionCleanup(): Promise<void> {
       );
     }
 
-    const timeoutMs = Math.max(60_000, retentionMs + 45_000);
+    const timeoutMs = Math.max(retentionWaitFloorMs, retentionMs + retentionExtraWaitMs);
     await waitForVariablesAbsent(rice, [taskKey, resultKey, idemKey], timeoutMs);
     console.log(`[extended] retention cleanup verified (retention=${retentionRaw})`);
+  } finally {
+    await primary.close();
+  }
+}
+
+async function phaseExternalDelivery(): Promise<void> {
+  if (!shouldValidateExternalDelivery) {
+    console.log("[extended] external delivery phase disabled");
+    return;
+  }
+  if (!deliverChannel || !deliverTo) {
+    throw new Error(
+      "external delivery requires ORCH_DELIVER_CHANNEL and ORCH_DELIVER_TO environment variables",
+    );
+  }
+
+  const primary = await GatewayClient.connect({
+    url: gatewayUrl,
+    token: gatewayToken,
+    label: "external-delivery",
+  });
+  try {
+    await waitForLiveWorkers(primary, ["worker-a", "worker-b"], liveWaitTimeoutMs);
+    const dispatch = await dispatchTask(primary, {
+      idempotencyKey: randomKey("external-delivery"),
+      message: `orchestration external delivery probe ${randomKey("msg")}`,
+      sessionKey: "agent:main:main",
+      deliver: true,
+      channel: deliverChannel,
+      to: deliverTo,
+      timeoutMs: deliverTimeoutMs,
+    });
+    assertCondition(
+      dispatch.status === "accepted",
+      `external delivery dispatch failed: ${JSON.stringify(dispatch)}`,
+    );
+    const result = await waitForTaskResult(
+      primary,
+      dispatch.taskId,
+      deliverTimeoutMs + externalResultBufferMs,
+    );
+    assertResultOk(result, "external-delivery");
+    await assertResultPersisted(dispatch.taskId);
+    console.log(
+      `[extended] external delivery verified (channel=${deliverChannel}, to=${deliverTo})`,
+    );
   } finally {
     await primary.close();
   }
@@ -988,6 +1100,9 @@ switch (phase) {
     break;
   case "retention-cleanup":
     await phaseRetentionCleanup();
+    break;
+  case "external-delivery":
+    await phaseExternalDelivery();
     break;
   default:
     throw new Error(`unknown ORCH_EXT_PHASE: ${phase}`);

@@ -15,12 +15,43 @@ STATE_TOKEN="${ORCH_STATE_AUTH_TOKEN:-${STATE_AUTH_TOKEN:-}}"
 STORAGE_URL="${ORCH_STORAGE_INSTANCE_URL:-${STORAGE_INSTANCE_URL:-}}"
 STORAGE_TOKEN="${ORCH_STORAGE_AUTH_TOKEN:-${STORAGE_AUTH_TOKEN:-}}"
 RICE_STORAGE_HTTP_PORT="${ORCH_STORAGE_HTTP_PORT:-${STORAGE_HTTP_PORT:-}}"
+OPENCLAW_SKIP_CHANNELS="${ORCH_OPENCLAW_SKIP_CHANNELS:-1}"
+MODEL_PRIMARY="${ORCH_MODEL_PRIMARY:-google/gemini-3-flash-preview}"
+GEMINI_KEY="${ORCH_GEMINI_API_KEY:-${GEMINI_API_KEY:-}}"
+TELEGRAM_TOKEN="${ORCH_TELEGRAM_BOT_TOKEN:-${TELEGRAM_BOT_TOKEN:-}}"
 
 if [[ -z "$RICE_ENDPOINT" && ( -z "$STATE_URL" || -z "$STORAGE_URL" ) ]]; then
   echo "Missing Rice configuration."
   echo "Provide ORCH_RICE_ENDPOINT, or set STATE_INSTANCE_URL + STORAGE_INSTANCE_URL."
   echo "You can also use ORCH_STATE_INSTANCE_URL + ORCH_STORAGE_INSTANCE_URL."
   exit 1
+fi
+
+if [[ "$MODEL_PRIMARY" == google/* && -z "$GEMINI_KEY" ]]; then
+  echo "Missing GEMINI_API_KEY (or ORCH_GEMINI_API_KEY) for model $MODEL_PRIMARY."
+  exit 1
+fi
+
+TELEGRAM_CONFIG_JSON=""
+if [[ -n "$TELEGRAM_TOKEN" ]]; then
+  TELEGRAM_CONFIG_JSON=$(cat <<JSON
+  "channels": {
+    "telegram": {
+      "enabled": true,
+      "botToken": "$TELEGRAM_TOKEN",
+      "dmPolicy": "open",
+      "allowFrom": ["*"]
+    }
+  },
+  "plugins": {
+    "entries": {
+      "telegram": {
+        "enabled": true
+      }
+    }
+  },
+JSON
+)
 fi
 
 WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/openclaw-orchestration-e2e.XXXXXX")"
@@ -39,6 +70,9 @@ cleanup() {
     STORAGE_INSTANCE_URL="$STORAGE_URL" \
     STORAGE_AUTH_TOKEN="$STORAGE_TOKEN" \
     STORAGE_HTTP_PORT="$RICE_STORAGE_HTTP_PORT" \
+    ORCH_OPENCLAW_SKIP_CHANNELS="$OPENCLAW_SKIP_CHANNELS" \
+    GEMINI_API_KEY="$GEMINI_KEY" \
+    TELEGRAM_BOT_TOKEN="$TELEGRAM_TOKEN" \
       docker compose -f "$COMPOSE_FILE" --project-name "$PROJECT" logs --tail 120 || true
   fi
   OPENCLAW_IMAGE="$IMAGE_NAME" \
@@ -49,6 +83,9 @@ cleanup() {
   STORAGE_INSTANCE_URL="$STORAGE_URL" \
   STORAGE_AUTH_TOKEN="$STORAGE_TOKEN" \
   STORAGE_HTTP_PORT="$RICE_STORAGE_HTTP_PORT" \
+  ORCH_OPENCLAW_SKIP_CHANNELS="$OPENCLAW_SKIP_CHANNELS" \
+  GEMINI_API_KEY="$GEMINI_KEY" \
+  TELEGRAM_BOT_TOKEN="$TELEGRAM_TOKEN" \
     docker compose -f "$COMPOSE_FILE" --project-name "$PROJECT" down -v >/dev/null 2>&1 || true
   rm -rf "$WORK_DIR"
   return "$exit_code"
@@ -66,6 +103,14 @@ if [[ -n "$RICE_ENDPOINT" ]]; then
       "token": "$GATEWAY_TOKEN"
     }
   },
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "$MODEL_PRIMARY"
+      }
+    }
+  },
+${TELEGRAM_CONFIG_JSON}
   "orchestration": {
     "enabled": true,
     "role": "orchestrator",
@@ -86,6 +131,14 @@ JSON
       "token": "$GATEWAY_TOKEN"
     }
   },
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "$MODEL_PRIMARY"
+      }
+    }
+  },
+${TELEGRAM_CONFIG_JSON}
   "orchestration": {
     "enabled": true,
     "role": "worker",
@@ -106,6 +159,14 @@ JSON
       "token": "$GATEWAY_TOKEN"
     }
   },
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "$MODEL_PRIMARY"
+      }
+    }
+  },
+${TELEGRAM_CONFIG_JSON}
   "orchestration": {
     "enabled": true,
     "role": "worker",
@@ -127,6 +188,14 @@ else
       "token": "$GATEWAY_TOKEN"
     }
   },
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "$MODEL_PRIMARY"
+      }
+    }
+  },
+${TELEGRAM_CONFIG_JSON}
   "orchestration": {
     "enabled": true,
     "role": "orchestrator",
@@ -146,6 +215,14 @@ JSON
       "token": "$GATEWAY_TOKEN"
     }
   },
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "$MODEL_PRIMARY"
+      }
+    }
+  },
+${TELEGRAM_CONFIG_JSON}
   "orchestration": {
     "enabled": true,
     "role": "worker",
@@ -165,6 +242,14 @@ JSON
       "token": "$GATEWAY_TOKEN"
     }
   },
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "$MODEL_PRIMARY"
+      }
+    }
+  },
+${TELEGRAM_CONFIG_JSON}
   "orchestration": {
     "enabled": true,
     "role": "worker",
@@ -194,6 +279,9 @@ STATE_AUTH_TOKEN="$STATE_TOKEN" \
 STORAGE_INSTANCE_URL="$STORAGE_URL" \
 STORAGE_AUTH_TOKEN="$STORAGE_TOKEN" \
 STORAGE_HTTP_PORT="$RICE_STORAGE_HTTP_PORT" \
+ORCH_OPENCLAW_SKIP_CHANNELS="$OPENCLAW_SKIP_CHANNELS" \
+GEMINI_API_KEY="$GEMINI_KEY" \
+TELEGRAM_BOT_TOKEN="$TELEGRAM_TOKEN" \
   docker compose -f "$COMPOSE_FILE" --project-name "$PROJECT" up -d >/dev/null
 
 echo "Waiting for orchestrator port $ORCH_PORT"

@@ -15,6 +15,7 @@ COPY skills ./skills
 COPY patches ./patches
 COPY ui ./ui
 COPY extensions/memory-core ./extensions/memory-core
+COPY extensions/telegram ./extensions/telegram
 
 RUN pnpm install --frozen-lockfile
 RUN pnpm build

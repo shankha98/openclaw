@@ -18,12 +18,80 @@ RICE_STORAGE_HTTP_PORT="${ORCH_STORAGE_HTTP_PORT:-${STORAGE_HTTP_PORT:-}}"
 BURST_COUNT="${ORCH_BURST_COUNT:-24}"
 RETENTION="${ORCH_RETENTION:-7d}"
 RUN_RETENTION_PHASE="${ORCH_EXT_VALIDATE_RETENTION:-0}"
+RUN_EXTERNAL_DELIVERY_PHASE="${ORCH_EXT_VALIDATE_EXTERNAL_DELIVERY:-0}"
+DELIVER_CHANNEL="${ORCH_DELIVER_CHANNEL:-}"
+DELIVER_TO="${ORCH_DELIVER_TO:-}"
+DELIVER_TIMEOUT_MS="${ORCH_DELIVER_TIMEOUT_MS:-120000}"
+MODEL_PRIMARY="${ORCH_MODEL_PRIMARY:-google/gemini-3-flash-preview}"
+GEMINI_KEY="${ORCH_GEMINI_API_KEY:-${GEMINI_API_KEY:-}}"
+TELEGRAM_TOKEN="${ORCH_TELEGRAM_BOT_TOKEN:-${TELEGRAM_BOT_TOKEN:-}}"
+OPENCLAW_SKIP_CHANNELS="${ORCH_OPENCLAW_SKIP_CHANNELS:-1}"
+REQUIRE_OK_RESULTS="${ORCH_REQUIRE_OK_RESULTS:-1}"
+HEARTBEAT_INTERVAL="${ORCH_HEARTBEAT_INTERVAL:-2s}"
+HEARTBEAT_TTL="${ORCH_HEARTBEAT_TTL:-8s}"
+POLL_INTERVAL="${ORCH_POLL_INTERVAL:-2s}"
+EXT_CONNECT_TIMEOUT_MS="${ORCH_EXT_CONNECT_TIMEOUT_MS:-60000}"
+EXT_STATUS_RPC_TIMEOUT_MS="${ORCH_EXT_STATUS_RPC_TIMEOUT_MS:-20000}"
+EXT_DISPATCH_RPC_TIMEOUT_MS="${ORCH_EXT_DISPATCH_RPC_TIMEOUT_MS:-30000}"
+EXT_TASK_TIMEOUT_MS="${ORCH_EXT_TASK_TIMEOUT_MS:-120000}"
+EXT_LIVE_WAIT_TIMEOUT_MS="${ORCH_EXT_LIVE_WAIT_TIMEOUT_MS:-60000}"
+EXT_FAILOVER_OFFLINE_WAIT_TIMEOUT_MS="${ORCH_EXT_FAILOVER_OFFLINE_WAIT_TIMEOUT_MS:-45000}"
+EXT_BURST_RESULTS_TIMEOUT_MS="${ORCH_EXT_BURST_RESULTS_TIMEOUT_MS:-180000}"
+EXT_OBSERVER_RESULT_TIMEOUT_MS="${ORCH_EXT_OBSERVER_RESULT_TIMEOUT_MS:-6000}"
+EXT_EXTERNAL_RESULT_BUFFER_MS="${ORCH_EXT_EXTERNAL_RESULT_BUFFER_MS:-60000}"
+EXT_RETENTION_MAX_MS="${ORCH_EXT_RETENTION_MAX_MS:-120000}"
+EXT_RETENTION_WAIT_FLOOR_MS="${ORCH_EXT_RETENTION_WAIT_FLOOR_MS:-60000}"
+EXT_RETENTION_EXTRA_WAIT_MS="${ORCH_EXT_RETENTION_EXTRA_WAIT_MS:-45000}"
+EXT_CONNECT_CHALLENGE_TIMEOUT_MS="${ORCH_EXT_CONNECT_CHALLENGE_TIMEOUT_MS:-1000}"
 
 if [[ -z "$RICE_ENDPOINT" && ( -z "$STATE_URL" || -z "$STORAGE_URL" ) ]]; then
   echo "Missing Rice configuration."
   echo "Provide ORCH_RICE_ENDPOINT, or set STATE_INSTANCE_URL + STORAGE_INSTANCE_URL."
   echo "You can also use ORCH_STATE_INSTANCE_URL + ORCH_STORAGE_INSTANCE_URL."
   exit 1
+fi
+
+if [[ "$MODEL_PRIMARY" == google/* && -z "$GEMINI_KEY" ]]; then
+  echo "Missing GEMINI_API_KEY (or ORCH_GEMINI_API_KEY) for model $MODEL_PRIMARY."
+  exit 1
+fi
+
+if [[ "$RUN_EXTERNAL_DELIVERY_PHASE" == "1" ]]; then
+  if [[ -z "${ORCH_OPENCLAW_SKIP_CHANNELS:-}" ]]; then
+    OPENCLAW_SKIP_CHANNELS="0"
+  fi
+  if [[ -z "$DELIVER_CHANNEL" || -z "$DELIVER_TO" ]]; then
+    echo "Missing delivery target for external delivery phase."
+    echo "Set ORCH_DELIVER_CHANNEL and ORCH_DELIVER_TO."
+    exit 1
+  fi
+  if [[ "$DELIVER_CHANNEL" == "telegram" && -z "$TELEGRAM_TOKEN" ]]; then
+    echo "Missing Telegram credentials for external delivery phase."
+    echo "Set TELEGRAM_BOT_TOKEN (or ORCH_TELEGRAM_BOT_TOKEN)."
+    exit 1
+  fi
+fi
+
+TELEGRAM_CONFIG_JSON=""
+if [[ -n "$TELEGRAM_TOKEN" ]]; then
+  TELEGRAM_CONFIG_JSON=$(cat <<JSON
+  "channels": {
+    "telegram": {
+      "enabled": true,
+      "botToken": "$TELEGRAM_TOKEN",
+      "dmPolicy": "open",
+      "allowFrom": ["*"]
+    }
+  },
+  "plugins": {
+    "entries": {
+      "telegram": {
+        "enabled": true
+      }
+    }
+  },
+JSON
+)
 fi
 
 WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/openclaw-orchestration-extended-e2e.XXXXXX")"
@@ -38,6 +106,9 @@ compose_cmd() {
   STORAGE_INSTANCE_URL="$STORAGE_URL" \
   STORAGE_AUTH_TOKEN="$STORAGE_TOKEN" \
   STORAGE_HTTP_PORT="$RICE_STORAGE_HTTP_PORT" \
+  ORCH_OPENCLAW_SKIP_CHANNELS="$OPENCLAW_SKIP_CHANNELS" \
+  GEMINI_API_KEY="$GEMINI_KEY" \
+  TELEGRAM_BOT_TOKEN="$TELEGRAM_TOKEN" \
     docker compose -f "$COMPOSE_FILE" --project-name "$PROJECT" "$@"
 }
 
@@ -85,6 +156,24 @@ run_phase() {
     -e ORCH_STORAGE_HTTP_PORT="$RICE_STORAGE_HTTP_PORT" \
     -e ORCH_BURST_COUNT="$BURST_COUNT" \
     -e ORCH_RETENTION="$RETENTION" \
+    -e ORCH_EXT_VALIDATE_EXTERNAL_DELIVERY="$RUN_EXTERNAL_DELIVERY_PHASE" \
+    -e ORCH_DELIVER_CHANNEL="$DELIVER_CHANNEL" \
+    -e ORCH_DELIVER_TO="$DELIVER_TO" \
+    -e ORCH_DELIVER_TIMEOUT_MS="$DELIVER_TIMEOUT_MS" \
+    -e ORCH_REQUIRE_OK_RESULTS="$REQUIRE_OK_RESULTS" \
+    -e ORCH_EXT_CONNECT_TIMEOUT_MS="$EXT_CONNECT_TIMEOUT_MS" \
+    -e ORCH_EXT_CONNECT_CHALLENGE_TIMEOUT_MS="$EXT_CONNECT_CHALLENGE_TIMEOUT_MS" \
+    -e ORCH_EXT_STATUS_RPC_TIMEOUT_MS="$EXT_STATUS_RPC_TIMEOUT_MS" \
+    -e ORCH_EXT_DISPATCH_RPC_TIMEOUT_MS="$EXT_DISPATCH_RPC_TIMEOUT_MS" \
+    -e ORCH_EXT_TASK_TIMEOUT_MS="$EXT_TASK_TIMEOUT_MS" \
+    -e ORCH_EXT_LIVE_WAIT_TIMEOUT_MS="$EXT_LIVE_WAIT_TIMEOUT_MS" \
+    -e ORCH_EXT_FAILOVER_OFFLINE_WAIT_TIMEOUT_MS="$EXT_FAILOVER_OFFLINE_WAIT_TIMEOUT_MS" \
+    -e ORCH_EXT_BURST_RESULTS_TIMEOUT_MS="$EXT_BURST_RESULTS_TIMEOUT_MS" \
+    -e ORCH_EXT_OBSERVER_RESULT_TIMEOUT_MS="$EXT_OBSERVER_RESULT_TIMEOUT_MS" \
+    -e ORCH_EXT_EXTERNAL_RESULT_BUFFER_MS="$EXT_EXTERNAL_RESULT_BUFFER_MS" \
+    -e ORCH_EXT_RETENTION_MAX_MS="$EXT_RETENTION_MAX_MS" \
+    -e ORCH_EXT_RETENTION_WAIT_FLOOR_MS="$EXT_RETENTION_WAIT_FLOOR_MS" \
+    -e ORCH_EXT_RETENTION_EXTRA_WAIT_MS="$EXT_RETENTION_EXTRA_WAIT_MS" \
     orchestrator \
     node --import tsx /app/scripts/e2e/orchestration-rice-extended-check.ts
 }
@@ -100,17 +189,25 @@ if [[ -n "$RICE_ENDPOINT" ]]; then
       "token": "$GATEWAY_TOKEN"
     }
   },
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "$MODEL_PRIMARY"
+      }
+    }
+  },
+${TELEGRAM_CONFIG_JSON}
   "orchestration": {
     "enabled": true,
     "role": "orchestrator",
     "clusterId": "$CLUSTER_ID",
     "workers": ["worker-a", "worker-b"],
     "heartbeat": {
-      "interval": "2s",
-      "ttl": "8s"
+      "interval": "$HEARTBEAT_INTERVAL",
+      "ttl": "$HEARTBEAT_TTL"
     },
     "poll": {
-      "interval": "2s"
+      "interval": "$POLL_INTERVAL"
     },
     "retention": "$RETENTION",
     "rice": {
@@ -128,17 +225,25 @@ JSON
       "token": "$GATEWAY_TOKEN"
     }
   },
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "$MODEL_PRIMARY"
+      }
+    }
+  },
+${TELEGRAM_CONFIG_JSON}
   "orchestration": {
     "enabled": true,
     "role": "worker",
     "clusterId": "$CLUSTER_ID",
     "workerId": "worker-a",
     "heartbeat": {
-      "interval": "2s",
-      "ttl": "8s"
+      "interval": "$HEARTBEAT_INTERVAL",
+      "ttl": "$HEARTBEAT_TTL"
     },
     "poll": {
-      "interval": "2s"
+      "interval": "$POLL_INTERVAL"
     },
     "retention": "$RETENTION",
     "rice": {
@@ -156,17 +261,25 @@ JSON
       "token": "$GATEWAY_TOKEN"
     }
   },
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "$MODEL_PRIMARY"
+      }
+    }
+  },
+${TELEGRAM_CONFIG_JSON}
   "orchestration": {
     "enabled": true,
     "role": "worker",
     "clusterId": "$CLUSTER_ID",
     "workerId": "worker-b",
     "heartbeat": {
-      "interval": "2s",
-      "ttl": "8s"
+      "interval": "$HEARTBEAT_INTERVAL",
+      "ttl": "$HEARTBEAT_TTL"
     },
     "poll": {
-      "interval": "2s"
+      "interval": "$POLL_INTERVAL"
     },
     "retention": "$RETENTION",
     "rice": {
@@ -185,17 +298,25 @@ else
       "token": "$GATEWAY_TOKEN"
     }
   },
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "$MODEL_PRIMARY"
+      }
+    }
+  },
+${TELEGRAM_CONFIG_JSON}
   "orchestration": {
     "enabled": true,
     "role": "orchestrator",
     "clusterId": "$CLUSTER_ID",
     "workers": ["worker-a", "worker-b"],
     "heartbeat": {
-      "interval": "2s",
-      "ttl": "8s"
+      "interval": "$HEARTBEAT_INTERVAL",
+      "ttl": "$HEARTBEAT_TTL"
     },
     "poll": {
-      "interval": "2s"
+      "interval": "$POLL_INTERVAL"
     },
     "retention": "$RETENTION",
     "rice": {
@@ -212,17 +333,25 @@ JSON
       "token": "$GATEWAY_TOKEN"
     }
   },
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "$MODEL_PRIMARY"
+      }
+    }
+  },
+${TELEGRAM_CONFIG_JSON}
   "orchestration": {
     "enabled": true,
     "role": "worker",
     "clusterId": "$CLUSTER_ID",
     "workerId": "worker-a",
     "heartbeat": {
-      "interval": "2s",
-      "ttl": "8s"
+      "interval": "$HEARTBEAT_INTERVAL",
+      "ttl": "$HEARTBEAT_TTL"
     },
     "poll": {
-      "interval": "2s"
+      "interval": "$POLL_INTERVAL"
     },
     "retention": "$RETENTION",
     "rice": {
@@ -239,17 +368,25 @@ JSON
       "token": "$GATEWAY_TOKEN"
     }
   },
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "$MODEL_PRIMARY"
+      }
+    }
+  },
+${TELEGRAM_CONFIG_JSON}
   "orchestration": {
     "enabled": true,
     "role": "worker",
     "clusterId": "$CLUSTER_ID",
     "workerId": "worker-b",
     "heartbeat": {
-      "interval": "2s",
-      "ttl": "8s"
+      "interval": "$HEARTBEAT_INTERVAL",
+      "ttl": "$HEARTBEAT_TTL"
     },
     "poll": {
-      "interval": "2s"
+      "interval": "$POLL_INTERVAL"
     },
     "retention": "$RETENTION",
     "rice": {
@@ -292,6 +429,10 @@ run_phase post-orchestrator-restart
 
 if [[ "$RUN_RETENTION_PHASE" == "1" ]]; then
   run_phase retention-cleanup
+fi
+
+if [[ "$RUN_EXTERNAL_DELIVERY_PHASE" == "1" ]]; then
+  run_phase external-delivery
 fi
 
 echo "Extended orchestration docker acceptance passed"

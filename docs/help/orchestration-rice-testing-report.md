@@ -35,10 +35,21 @@ make test-docker-orchestration-rice-extended \
   ORCH_BURST_COUNT=8
 ```
 
+Command used for retention cleanup validation:
+
+```bash
+make test-docker-orchestration-rice-retention \
+  ENV_FILE=/path/to/.env \
+  ORCH_ORCHESTRATOR_PORT=19889 \
+  ORCH_BURST_COUNT=8 \
+  ORCH_RETENTION=20s
+```
+
 ## Final run result summary
 
 - Standard orchestration acceptance: `PASSED`
 - Extended orchestration acceptance: `PASSED`
+- Retention cleanup acceptance (short retention): `PASSED`
 - Final marker: `Extended orchestration docker acceptance passed`
 
 Observed during the successful run:
@@ -47,6 +58,7 @@ Observed during the successful run:
 - Post restart connect also required retries (`connected on retry attempt 2`).
 - Rice client logs showed gRPC fallback to HTTP followed by successful login.
 - `VariableUpdate` stream errors were observed, but orchestration still passed due reconciliation polling.
+- Retention phase marker observed: `[extended] retention cleanup verified (retention=20s)`.
 
 ## Case matrix
 
@@ -165,6 +177,53 @@ Observed during the successful run:
   - orchestrator restores live view via `listVariables` reconciliation on startup
   - ongoing task/result/heartbeat paths continue on same `runId`
 
+### 10) Retention cleanup lifecycle (Docker + real Rice)
+
+- Aspect tested: expiry cleanup for orchestration task/result/idempotency keys
+- Setup:
+  - run extended flow with `ORCH_RETENTION=20s`
+  - execute retention phase after baseline/failover/recovery/restart checks
+- Expectation:
+  - `oc.orch.task.<taskId>` expires
+  - `oc.orch.result.<taskId>` expires
+  - `oc.orch.idem.<sha256(idempotencyKey)>` expires
+- Result: `PASS`
+- Rice usage:
+  - checker reads variable presence via `state.getVariable`
+  - cleanup is verified by polling until all three keys are absent
+
+## Additional coverage for previously unvalidated areas
+
+### A) Model/tool output correctness (worker execution path)
+
+- Aspect tested: worker can execute a real tool call loop and return correct content
+- Test:
+  - `src/orchestration/worker.quality.e2e.test.ts`
+  - Run command:
+    - `pnpm vitest run --config vitest.e2e.config.ts src/orchestration/worker.quality.e2e.test.ts`
+- Expectation:
+  - worker `createWorkerTaskExecutor` runs `agentCommand`
+  - model performs `read` tool call against a nonce file
+  - result payload includes both expected nonce values
+- Result: `PASS`
+- Rice usage:
+  - none in this isolated worker-quality test (focus is task execution correctness)
+
+### B) Cross-channel delivery routing propagation (`deliver`, `to`, `channel`)
+
+- Aspect tested: routing flags survive the full orchestration request path into worker execution
+- Tests:
+  - `src/gateway/server-methods/orchestration.test.ts` (gateway handler forwards fields)
+  - `src/orchestration/runtime.test.ts` (orchestrator task envelope stores fields)
+  - `src/orchestration/worker.test.ts` (worker forwards fields to `agentCommand`)
+- Expectations:
+  - `orchestration.dispatch` forwards `deliver=true`, `to`, `channel`
+  - task variable preserves these fields
+  - worker invokes `agentCommand` with matching delivery options
+- Result: `PASS`
+- Rice usage:
+  - fields are serialized in `oc.orch.task.<taskId>` and consumed by worker
+
 ## What this report validates
 
 - Multi instance orchestration wiring works end to end across three gateways.
@@ -176,8 +235,6 @@ Observed during the successful run:
   - idempotency map
 - Event stream disruptions can still be tolerated because reconciliation polling recovers state.
 
-## What this report does not validate
+## Remaining limits
 
-- Model quality or tool output correctness
-- Cross channel external delivery behavior (`deliver=true`, `to`, `channel`)
-- Long horizon retention cleanup behavior (separate tests cover that logic)
+- Real external channel delivery success (for example actual Telegram/Signal send with channel creds) is still environment-dependent and not covered by this Docker flow (`OPENCLAW_SKIP_CHANNELS=1`).

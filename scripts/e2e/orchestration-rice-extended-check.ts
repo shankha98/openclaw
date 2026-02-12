@@ -1,5 +1,7 @@
+import { createHash } from "node:crypto";
 import { Client } from "rice-node-sdk";
 import { type RawData, WebSocket } from "ws";
+import { parseDurationMs } from "../../src/cli/parse-duration.ts";
 import { PROTOCOL_VERSION } from "../../src/gateway/protocol/index.ts";
 import { ensureRiceSdkConfigPath } from "../../src/memory/rice-sdk-config.ts";
 
@@ -69,6 +71,7 @@ const stateAuthToken = process.env.ORCH_STATE_AUTH_TOKEN?.trim();
 const storageInstanceUrl = process.env.ORCH_STORAGE_INSTANCE_URL?.trim();
 const storageAuthToken = process.env.ORCH_STORAGE_AUTH_TOKEN?.trim();
 const storageHttpPort = process.env.ORCH_STORAGE_HTTP_PORT?.trim();
+const retentionRaw = (process.env.ORCH_RETENTION ?? "7d").trim();
 
 if (!gatewayUrl || !gatewayToken || !runId) {
   throw new Error("missing ORCH_GATEWAY_URL/ORCH_GATEWAY_TOKEN/ORCH_RUN_ID");
@@ -103,6 +106,18 @@ function frameErrorMessage(frame: GatewayResponseFrame): string {
 
 function randomKey(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function hashIdempotencyKey(idempotencyKey: string): string {
+  return createHash("sha256").update(idempotencyKey).digest("hex");
+}
+
+function parseRetentionMsOrThrow(raw: string): number {
+  try {
+    return parseDurationMs(raw, { defaultUnit: "d" });
+  } catch (err) {
+    throw new Error(`invalid ORCH_RETENTION duration "${raw}": ${String(err)}`, { cause: err });
+  }
 }
 
 async function openWebSocket(url: string, timeoutMs = 8_000): Promise<WebSocket> {
@@ -524,7 +539,7 @@ function configureRiceEnvForReadback(): void {
   }
 }
 
-async function assertResultPersisted(taskId: string): Promise<void> {
+async function createRiceClient(): Promise<Client> {
   configureRiceEnvForReadback();
   const riceConfigPath = await ensureRiceSdkConfigPath();
   const rice = new Client({
@@ -534,9 +549,54 @@ async function assertResultPersisted(taskId: string): Promise<void> {
     storageRunId: runId,
   });
   await rice.connect();
+  return rice;
+}
+
+function isVariableNotFoundError(err: unknown): boolean {
+  if (!err || typeof err !== "object") {
+    return false;
+  }
+  const code = (err as { code?: unknown }).code;
+  if (code === 5) {
+    return true;
+  }
+  const message = String((err as { message?: unknown }).message ?? "");
+  return message.toLowerCase().includes("not found");
+}
+
+async function getVariableOrNull(rice: Client, key: string): Promise<{ name?: string } | null> {
+  try {
+    return await rice.state.getVariable(key);
+  } catch (err) {
+    if (isVariableNotFoundError(err)) {
+      return null;
+    }
+    throw err;
+  }
+}
+
+async function assertResultPersisted(taskId: string): Promise<void> {
+  const rice = await createRiceClient();
   const variableName = `oc.orch.result.${taskId}`;
-  const variable = await rice.state.getVariable(variableName);
+  const variable = await getVariableOrNull(rice, variableName);
   assertCondition(variable?.name === variableName, `missing Rice result variable ${variableName}`);
+}
+
+async function waitForVariablesAbsent(
+  rice: Client,
+  keys: string[],
+  timeoutMs: number,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const states = await Promise.all(keys.map(async (key) => await getVariableOrNull(rice, key)));
+    const remaining = keys.filter((_, idx) => states[idx]?.name);
+    if (remaining.length === 0) {
+      return;
+    }
+    await sleep(1_000);
+  }
+  throw new Error(`timed out waiting for variables to expire: ${JSON.stringify(keys)}`);
 }
 
 async function phaseBaseline(): Promise<void> {
@@ -862,6 +922,57 @@ async function phasePostOrchestratorRestart(): Promise<void> {
   }
 }
 
+async function phaseRetentionCleanup(): Promise<void> {
+  const retentionMs = parseRetentionMsOrThrow(retentionRaw);
+  assertCondition(
+    retentionMs <= 120_000,
+    `retention phase expects ORCH_RETENTION <= 120s, got "${retentionRaw}"`,
+  );
+
+  const primary = await GatewayClient.connect({
+    url: gatewayUrl,
+    token: gatewayToken,
+    label: "retention-cleanup",
+  });
+  try {
+    await waitForLiveWorkers(primary, ["worker-a", "worker-b"], 60_000);
+    const idempotencyKey = randomKey("retention");
+    const dispatch = await dispatchTask(primary, {
+      idempotencyKey,
+      message: "retention cleanup verification task",
+      sessionKey: "agent:main:main",
+      deliver: false,
+      timeoutMs: 120_000,
+    });
+    assertCondition(
+      dispatch.status === "accepted",
+      `retention dispatch failed: ${JSON.stringify(dispatch)}`,
+    );
+    const result = await waitForTaskResult(primary, dispatch.taskId, 120_000);
+    assertCondition(result.taskId === dispatch.taskId, "retention result mismatch");
+
+    const taskKey = `oc.orch.task.${dispatch.taskId}`;
+    const resultKey = `oc.orch.result.${dispatch.taskId}`;
+    const idemKey = `oc.orch.idem.${hashIdempotencyKey(idempotencyKey)}`;
+    const rice = await createRiceClient();
+    const seeded = await Promise.all(
+      [taskKey, resultKey, idemKey].map(async (key) => await getVariableOrNull(rice, key)),
+    );
+    for (let idx = 0; idx < seeded.length; idx += 1) {
+      assertCondition(
+        seeded[idx]?.name,
+        `expected variable to exist before expiry: ${[taskKey, resultKey, idemKey][idx]}`,
+      );
+    }
+
+    const timeoutMs = Math.max(60_000, retentionMs + 45_000);
+    await waitForVariablesAbsent(rice, [taskKey, resultKey, idemKey], timeoutMs);
+    console.log(`[extended] retention cleanup verified (retention=${retentionRaw})`);
+  } finally {
+    await primary.close();
+  }
+}
+
 switch (phase) {
   case "baseline":
     await phaseBaseline();
@@ -874,6 +985,9 @@ switch (phase) {
     break;
   case "post-orchestrator-restart":
     await phasePostOrchestratorRestart();
+    break;
+  case "retention-cleanup":
+    await phaseRetentionCleanup();
     break;
   default:
     throw new Error(`unknown ORCH_EXT_PHASE: ${phase}`);

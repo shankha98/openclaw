@@ -98,6 +98,59 @@ describe("gateway orchestration handlers", () => {
     );
   });
 
+  it("forwards delivery routing params into runtime dispatch", async () => {
+    const dispatch = vi.fn(async () => ({
+      taskId: "task-2",
+      idempotencyKey: "idem-2",
+      targetWorkerId: "worker-a",
+      status: "accepted",
+      acceptedAt: Date.now(),
+    }));
+    const context = makeContext({
+      orchestration: {
+        role: () => "orchestrator",
+        dispatch,
+        status: vi.fn(),
+        onResult: () => () => {},
+        start: async () => {},
+        stop: async () => {},
+        reconcileOnce: async () => {},
+      },
+    });
+
+    const respond = vi.fn();
+    await orchestrationHandlers["orchestration.dispatch"]({
+      req: { type: "req", id: "2", method: "orchestration.dispatch" },
+      params: {
+        idempotencyKey: "idem-2",
+        message: "send externally",
+        sessionKey: "agent:main:main",
+        deliver: true,
+        to: "+15550001111",
+        channel: "telegram",
+      },
+      client: null,
+      isWebchatConnect: () => false,
+      respond,
+      context,
+    });
+
+    expect(dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        idempotencyKey: "idem-2",
+        deliver: true,
+        to: "+15550001111",
+        channel: "telegram",
+      }),
+      expect.anything(),
+    );
+    expect(respond).toHaveBeenCalledWith(
+      true,
+      expect.objectContaining({ taskId: "task-2" }),
+      undefined,
+    );
+  });
+
   it("returns runtime status", async () => {
     const statusPayload = {
       enabled: true,

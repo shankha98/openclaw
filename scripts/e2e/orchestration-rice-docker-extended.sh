@@ -16,6 +16,8 @@ STORAGE_URL="${ORCH_STORAGE_INSTANCE_URL:-${STORAGE_INSTANCE_URL:-}}"
 STORAGE_TOKEN="${ORCH_STORAGE_AUTH_TOKEN:-${STORAGE_AUTH_TOKEN:-}}"
 RICE_STORAGE_HTTP_PORT="${ORCH_STORAGE_HTTP_PORT:-${STORAGE_HTTP_PORT:-}}"
 BURST_COUNT="${ORCH_BURST_COUNT:-24}"
+RETENTION="${ORCH_RETENTION:-7d}"
+RUN_RETENTION_PHASE="${ORCH_EXT_VALIDATE_RETENTION:-0}"
 
 if [[ -z "$RICE_ENDPOINT" && ( -z "$STATE_URL" || -z "$STORAGE_URL" ) ]]; then
   echo "Missing Rice configuration."
@@ -82,6 +84,7 @@ run_phase() {
     -e ORCH_STORAGE_AUTH_TOKEN="$STORAGE_TOKEN" \
     -e ORCH_STORAGE_HTTP_PORT="$RICE_STORAGE_HTTP_PORT" \
     -e ORCH_BURST_COUNT="$BURST_COUNT" \
+    -e ORCH_RETENTION="$RETENTION" \
     orchestrator \
     node --import tsx /app/scripts/e2e/orchestration-rice-extended-check.ts
 }
@@ -109,7 +112,7 @@ if [[ -n "$RICE_ENDPOINT" ]]; then
     "poll": {
       "interval": "2s"
     },
-    "retention": "7d",
+    "retention": "$RETENTION",
     "rice": {
       "runId": "$RUN_ID",
       "endpoint": "$RICE_ENDPOINT"
@@ -137,7 +140,7 @@ JSON
     "poll": {
       "interval": "2s"
     },
-    "retention": "7d",
+    "retention": "$RETENTION",
     "rice": {
       "runId": "$RUN_ID",
       "endpoint": "$RICE_ENDPOINT"
@@ -165,7 +168,7 @@ JSON
     "poll": {
       "interval": "2s"
     },
-    "retention": "7d",
+    "retention": "$RETENTION",
     "rice": {
       "runId": "$RUN_ID",
       "endpoint": "$RICE_ENDPOINT"
@@ -194,7 +197,7 @@ else
     "poll": {
       "interval": "2s"
     },
-    "retention": "7d",
+    "retention": "$RETENTION",
     "rice": {
       "runId": "$RUN_ID"
     }
@@ -221,7 +224,7 @@ JSON
     "poll": {
       "interval": "2s"
     },
-    "retention": "7d",
+    "retention": "$RETENTION",
     "rice": {
       "runId": "$RUN_ID"
     }
@@ -248,7 +251,7 @@ JSON
     "poll": {
       "interval": "2s"
     },
-    "retention": "7d",
+    "retention": "$RETENTION",
     "rice": {
       "runId": "$RUN_ID"
     }
@@ -286,5 +289,9 @@ compose_cmd restart orchestrator >/dev/null
 wait_for_port "$ORCH_PORT"
 sleep 1
 run_phase post-orchestrator-restart
+
+if [[ "$RUN_RETENTION_PHASE" == "1" ]]; then
+  run_phase retention-cleanup
+fi
 
 echo "Extended orchestration docker acceptance passed"

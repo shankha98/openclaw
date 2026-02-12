@@ -3,6 +3,7 @@ SHELL := /bin/bash
 ORCH_ORCHESTRATOR_PORT ?= 19889
 ORCH_SKIP_BUILD ?= 0
 ORCH_BURST_COUNT ?= 24
+ORCH_RETENTION ?= 7d
 ENV_FILE ?=
 STATE_INSTANCE_URL ?=
 STATE_AUTH_TOKEN ?=
@@ -10,12 +11,13 @@ STORAGE_INSTANCE_URL ?=
 STORAGE_AUTH_TOKEN ?=
 STORAGE_HTTP_PORT ?= 80
 
-.PHONY: help test-docker-orchestration-rice test-docker-orchestration-rice-extended
+.PHONY: help test-docker-orchestration-rice test-docker-orchestration-rice-extended test-docker-orchestration-rice-retention
 
 help:
 	@echo "Targets:"
 	@echo "  make test-docker-orchestration-rice [ENV_FILE=/abs/path/.env] [STATE_INSTANCE_URL=...] [STATE_AUTH_TOKEN=...] [STORAGE_INSTANCE_URL=...] [STORAGE_AUTH_TOKEN=...] [STORAGE_HTTP_PORT=80] [ORCH_ORCHESTRATOR_PORT=19889] [ORCH_SKIP_BUILD=0]"
-	@echo "  make test-docker-orchestration-rice-extended [ENV_FILE=/abs/path/.env] [STATE_INSTANCE_URL=...] [STATE_AUTH_TOKEN=...] [STORAGE_INSTANCE_URL=...] [STORAGE_AUTH_TOKEN=...] [STORAGE_HTTP_PORT=80] [ORCH_ORCHESTRATOR_PORT=19889] [ORCH_SKIP_BUILD=0] [ORCH_BURST_COUNT=24]"
+	@echo "  make test-docker-orchestration-rice-extended [ENV_FILE=/abs/path/.env] [STATE_INSTANCE_URL=...] [STATE_AUTH_TOKEN=...] [STORAGE_INSTANCE_URL=...] [STORAGE_AUTH_TOKEN=...] [STORAGE_HTTP_PORT=80] [ORCH_ORCHESTRATOR_PORT=19889] [ORCH_SKIP_BUILD=0] [ORCH_BURST_COUNT=24] [ORCH_RETENTION=7d]"
+	@echo "  make test-docker-orchestration-rice-retention [ENV_FILE=/abs/path/.env] [STATE_INSTANCE_URL=...] [STATE_AUTH_TOKEN=...] [STORAGE_INSTANCE_URL=...] [STORAGE_AUTH_TOKEN=...] [STORAGE_HTTP_PORT=80] [ORCH_ORCHESTRATOR_PORT=19889] [ORCH_SKIP_BUILD=0] [ORCH_RETENTION=30s]"
 
 define run_orchestration_test
 	set -euo pipefail; \
@@ -57,6 +59,7 @@ define run_orchestration_test
 	ORCH_ORCHESTRATOR_PORT="$(ORCH_ORCHESTRATOR_PORT)" \
 	ORCH_SKIP_BUILD="$(ORCH_SKIP_BUILD)" \
 	ORCH_BURST_COUNT="$(ORCH_BURST_COUNT)" \
+	ORCH_RETENTION="$(ORCH_RETENTION)" \
 	ORCH_STATE_INSTANCE_URL="$$state_url" \
 	ORCH_STATE_AUTH_TOKEN="$$state_token" \
 	ORCH_STORAGE_INSTANCE_URL="$$storage_url" \
@@ -70,3 +73,6 @@ test-docker-orchestration-rice:
 
 test-docker-orchestration-rice-extended:
 	@$(call run_orchestration_test,test:docker:orchestration-rice:extended)
+
+test-docker-orchestration-rice-retention:
+	@$(call run_orchestration_test,test:docker:orchestration-rice:retention)

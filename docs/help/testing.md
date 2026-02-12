@@ -318,7 +318,8 @@ These run `pnpm test:live` inside the repo Docker image, mounting your local con
 - Onboarding wizard (TTY, full scaffolding): `pnpm test:docker:onboard` (script: `scripts/e2e/onboard-docker.sh`)
 - Gateway networking (two containers, WS auth + health): `pnpm test:docker:gateway-network` (script: `scripts/e2e/gateway-network-docker.sh`)
 - Orchestrator + 2 workers over Rice state pub/sub (requires external Rice endpoint): `pnpm test:docker:orchestration-rice` (script: `scripts/e2e/orchestration-rice-docker.sh`)
-- Extended orchestration matrix (burst routing, worker failover/recovery, orchestrator restart): `pnpm test:docker:orchestration-rice:extended` (script: `scripts/e2e/orchestration-rice-docker-extended.sh`)
+- Extended multi-instance orchestration stress/failover suite: `pnpm test:docker:orchestration-rice:extended` (script: `scripts/e2e/orchestration-rice-docker-extended.sh`)
+- Orchestration retention cleanup verification (short retention + real Rice delete checks): `pnpm test:docker:orchestration-rice:retention` (script: `scripts/e2e/orchestration-rice-docker-retention.sh`)
 - Detailed case expectations and observed results: [Orchestration Rice testing report](/help/orchestration-rice-testing-report)
 - Plugins (custom extension load + registry smoke): `pnpm test:docker:plugins` (script: `scripts/e2e/plugins-docker.sh`)
 

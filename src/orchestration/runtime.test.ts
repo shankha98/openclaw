@@ -187,6 +187,46 @@ describe("orchestration runtime", () => {
     expect(second?.targetWorkerId).toBe("worker-b");
   });
 
+  it("stores delivery routing fields in task envelopes", async () => {
+    const now = Date.now();
+    const bus = new MockBus();
+    bus.variables.set(
+      `${ORCH_HEARTBEAT_PREFIX}worker-a.heartbeat`,
+      heartbeat("worker-a", new Date(now).toISOString()),
+    );
+
+    const runtime = createOrchestrationRuntime({
+      cfg: {
+        orchestration: {
+          enabled: true,
+          role: "orchestrator",
+          clusterId: "cluster-a",
+          workers: ["worker-a"],
+        },
+      },
+      bus,
+      now: () => now,
+      executeTask: vi.fn(),
+    });
+    await runtime?.start();
+
+    const accepted = await runtime?.dispatch({
+      idempotencyKey: "delivery-route-1",
+      message: "hello",
+      sessionKey: "agent:main:main",
+      deliver: true,
+      to: "+15550001111",
+      channel: "signal",
+    });
+
+    const storedTask = bus.variables.get(`${ORCH_TASK_PREFIX}${accepted?.taskId}`)?.value as
+      | OrchestrationTaskEnvelope
+      | undefined;
+    expect(storedTask?.deliver).toBe(true);
+    expect(storedTask?.to).toBe("+15550001111");
+    expect(storedTask?.channel).toBe("signal");
+  });
+
   it("worker ignores tasks for different worker ids", async () => {
     const bus = new MockBus();
     const executeTask = vi.fn(
@@ -401,6 +441,69 @@ describe("orchestration runtime", () => {
     expect(bus.deleteCalls).toContain(`${ORCH_TASK_PREFIX}old-task`);
     expect(bus.deleteCalls).toContain(`${ORCH_RESULT_PREFIX}old-result`);
     expect(bus.deleteCalls).not.toContain(`${ORCH_IDEMPOTENCY_PREFIX}fresh`);
+  });
+
+  it("cleans up task/result/idempotency after retention window elapses", async () => {
+    const startMs = Date.parse("2026-02-01T00:00:00.000Z");
+    let nowMs = startMs;
+    const bus = new MockBus();
+    bus.variables.set(
+      `${ORCH_HEARTBEAT_PREFIX}worker-a.heartbeat`,
+      heartbeat("worker-a", new Date(startMs).toISOString()),
+    );
+
+    const runtime = createOrchestrationRuntime({
+      cfg: {
+        orchestration: {
+          enabled: true,
+          role: "orchestrator",
+          clusterId: "cluster-a",
+          workers: ["worker-a"],
+          retention: "2d",
+        },
+      },
+      bus,
+      now: () => nowMs,
+      executeTask: vi.fn(),
+    });
+    await runtime?.start();
+
+    const accepted = await runtime?.dispatch({
+      idempotencyKey: "retention-horizon",
+      message: "hello",
+      sessionKey: "agent:main:main",
+    });
+    expect(accepted?.status).toBe("accepted");
+    expect(bus.variables.has(`${ORCH_TASK_PREFIX}${accepted?.taskId}`)).toBe(true);
+    expect([...bus.variables.keys()].some((name) => name.startsWith(ORCH_IDEMPOTENCY_PREFIX))).toBe(
+      true,
+    );
+
+    const result: OrchestrationResultEnvelope = {
+      schemaVersion: 1,
+      taskId: accepted?.taskId ?? "missing",
+      idempotencyKey: "retention-horizon",
+      targetWorkerId: "worker-a",
+      sessionKey: "agent:main:main",
+      status: "ok",
+      summary: "done",
+      startedAt: new Date(startMs + 1_000).toISOString(),
+      finishedAt: new Date(startMs + 2_000).toISOString(),
+      attempt: 1,
+      result: { ok: true },
+    };
+    await bus.setVariable(`${ORCH_RESULT_PREFIX}${result.taskId}`, result);
+
+    nowMs = startMs + 24 * 60 * 60 * 1000;
+    await runtime?.reconcileOnce();
+    expect(bus.deleteCalls).toEqual([]);
+
+    nowMs = startMs + 3 * 24 * 60 * 60 * 1000;
+    await runtime?.reconcileOnce();
+
+    expect(bus.deleteCalls).toContain(`${ORCH_TASK_PREFIX}${result.taskId}`);
+    expect(bus.deleteCalls).toContain(`${ORCH_RESULT_PREFIX}${result.taskId}`);
+    expect(bus.deleteCalls.some((name) => name.startsWith(ORCH_IDEMPOTENCY_PREFIX))).toBe(true);
   });
 
   it("resolves defaults for orchestration runtime config", () => {

@@ -63,6 +63,10 @@ Usually unnecessary: one Gateway can serve multiple messaging channels and agent
 
 Supported if you isolate state + config and use unique ports. Full guide: [Multiple gateways](/gateway/multiple-gateways).
 
+For Rice-backed orchestrator/worker routing across multiple gateways, see
+[Multiple gateways](/gateway/multiple-gateways#orchestration-with-rice-state-pubsub) and
+[Gateway protocol](/gateway/protocol#orchestration-rice-pubsub).
+
 Service names are profile-aware:
 
 - macOS: `bot.molt.<profile>` (legacy `com.openclaw.*` may still exist)

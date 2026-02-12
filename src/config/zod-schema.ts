@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { parseDurationMs } from "../cli/parse-duration.js";
 import { ToolsSchema } from "./zod-schema.agent-runtime.js";
 import { AgentsSchema, AudioSchema, BindingsSchema, BroadcastSchema } from "./zod-schema.agents.js";
 import { ApprovalsSchema } from "./zod-schema.approvals.js";
@@ -50,6 +51,41 @@ const MemorySchema = z
     backend: z.literal("rice").optional(),
     citations: z.union([z.literal("auto"), z.literal("on"), z.literal("off")]).optional(),
     rice: MemoryRiceSchema.optional(),
+  })
+  .strict()
+  .optional();
+
+const OrchestrationHeartbeatSchema = z
+  .object({
+    interval: z.string().optional(),
+    ttl: z.string().optional(),
+  })
+  .strict();
+
+const OrchestrationPollSchema = z
+  .object({
+    interval: z.string().optional(),
+  })
+  .strict();
+
+const OrchestrationRiceSchema = z
+  .object({
+    runId: z.string().optional(),
+    endpoint: z.string().optional(),
+  })
+  .strict();
+
+const OrchestrationSchema = z
+  .object({
+    enabled: z.boolean().optional(),
+    role: z.union([z.literal("off"), z.literal("orchestrator"), z.literal("worker")]).optional(),
+    clusterId: z.string().optional(),
+    workerId: z.string().optional(),
+    workers: z.array(z.string()).optional(),
+    heartbeat: OrchestrationHeartbeatSchema.optional(),
+    poll: OrchestrationPollSchema.optional(),
+    retention: z.string().optional(),
+    rice: OrchestrationRiceSchema.optional(),
   })
   .strict()
   .optional();
@@ -475,6 +511,7 @@ export const OpenClawSchema = z
       .strict()
       .optional(),
     memory: MemorySchema,
+    orchestration: OrchestrationSchema,
     skills: z
       .object({
         allowBundled: z.array(z.string()).optional(),
@@ -560,6 +597,40 @@ export const OpenClawSchema = z
   })
   .strict()
   .superRefine((cfg, ctx) => {
+    const orchestration = cfg.orchestration;
+    if (orchestration?.role === "worker") {
+      const workerId = orchestration.workerId?.trim() ?? "";
+      if (!workerId) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["orchestration", "workerId"],
+          message: "workerId is required when orchestration.role=worker",
+        });
+      }
+    }
+    const durationChecks: Array<
+      [string[] | undefined, string | undefined, "ms" | "s" | "m" | "h" | "d"]
+    > = [
+      [["orchestration", "heartbeat", "interval"], orchestration?.heartbeat?.interval, "s"],
+      [["orchestration", "heartbeat", "ttl"], orchestration?.heartbeat?.ttl, "s"],
+      [["orchestration", "poll", "interval"], orchestration?.poll?.interval, "s"],
+      [["orchestration", "retention"], orchestration?.retention, "d"],
+    ];
+    for (const [path, raw, defaultUnit] of durationChecks) {
+      if (!raw) {
+        continue;
+      }
+      try {
+        parseDurationMs(raw, { defaultUnit });
+      } catch {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: path ?? [],
+          message: "invalid duration (use ms, s, m, h, d)",
+        });
+      }
+    }
+
     const agents = cfg.agents?.list ?? [];
     if (agents.length === 0) {
       return;

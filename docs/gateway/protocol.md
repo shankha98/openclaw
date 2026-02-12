@@ -175,6 +175,20 @@ The Gateway treats these as **claims** and enforces server-side allowlists.
 - When an exec request needs approval, the gateway broadcasts `exec.approval.requested`.
 - Operator clients resolve by calling `exec.approval.resolve` (requires `operator.approvals` scope).
 
+## Orchestration Rice PubSub
+
+OpenClaw can optionally run a Rice-backed orchestration bus across multiple gateway instances.
+
+- Methods:
+  - `orchestration.dispatch` (requires `operator.write`)
+  - `orchestration.status` (requires `operator.read`)
+- Event:
+  - `orchestration.result`
+
+Dispatch returns an async accepted/deduped response (`taskId`, `targetWorkerId`, `status`).
+Final task output is delivered as `orchestration.result` and persisted to Rice state under
+`oc.orch.result.<taskId>`.
+
 ## Versioning
 
 - `PROTOCOL_VERSION` lives in `src/gateway/protocol/schema.ts`.

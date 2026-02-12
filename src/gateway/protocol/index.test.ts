@@ -1,6 +1,11 @@
 import type { ErrorObject } from "ajv";
 import { describe, expect, it } from "vitest";
-import { formatValidationErrors } from "./index.js";
+import {
+  formatValidationErrors,
+  validateOrchestrationDispatchParams,
+  validateOrchestrationResultEvent,
+  validateOrchestrationStatusParams,
+} from "./index.js";
 
 const makeError = (overrides: Partial<ErrorObject>): ErrorObject => ({
   keyword: "type",
@@ -60,5 +65,49 @@ describe("formatValidationErrors", () => {
     expect(formatValidationErrors([err, err])).toBe(
       "at /auth: must have required property 'token'",
     );
+  });
+});
+
+describe("orchestration protocol validators", () => {
+  it("accepts valid orchestration.dispatch params", () => {
+    expect(
+      validateOrchestrationDispatchParams({
+        idempotencyKey: "idem-1",
+        message: "hello",
+        sessionKey: "agent:main:main",
+        timeoutMs: 15_000,
+      }),
+    ).toBe(true);
+  });
+
+  it("rejects invalid orchestration.dispatch params", () => {
+    expect(
+      validateOrchestrationDispatchParams({
+        idempotencyKey: "",
+        message: "hello",
+        sessionKey: "agent:main:main",
+      }),
+    ).toBe(false);
+  });
+
+  it("accepts orchestration.status params", () => {
+    expect(validateOrchestrationStatusParams({})).toBe(true);
+  });
+
+  it("accepts orchestration.result event payloads", () => {
+    expect(
+      validateOrchestrationResultEvent({
+        schemaVersion: 1,
+        taskId: "task-1",
+        idempotencyKey: "idem-1",
+        targetWorkerId: "worker-a",
+        sessionKey: "agent:main:main",
+        status: "ok",
+        summary: "done",
+        startedAt: new Date().toISOString(),
+        finishedAt: new Date().toISOString(),
+        attempt: 1,
+      }),
+    ).toBe(true);
   });
 });

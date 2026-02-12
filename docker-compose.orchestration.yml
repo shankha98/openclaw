@@ -1,0 +1,77 @@
+services:
+  orchestrator:
+    image: ${OPENCLAW_IMAGE:-openclaw:local}
+    environment:
+      HOME: /home/node
+      TERM: xterm-256color
+      OPENCLAW_SKIP_CHANNELS: "1"
+      OPENCLAW_SKIP_GMAIL_WATCHER: "1"
+      OPENCLAW_SKIP_CANVAS_HOST: "1"
+      OPENCLAW_SKIP_BROWSER_CONTROL_SERVER: "1"
+      STATE_INSTANCE_URL: "${STATE_INSTANCE_URL:-}"
+      STATE_AUTH_TOKEN: "${STATE_AUTH_TOKEN:-}"
+      STORAGE_INSTANCE_URL: "${STORAGE_INSTANCE_URL:-}"
+      STORAGE_AUTH_TOKEN: "${STORAGE_AUTH_TOKEN:-}"
+      STORAGE_HTTP_PORT: "${STORAGE_HTTP_PORT:-}"
+    volumes:
+      - ${ORCH_CONFIG_ROOT}/orchestrator:/home/node/.openclaw
+      - ${ORCH_CONFIG_ROOT}/workspace:/home/node/.openclaw/workspace
+    ports:
+      - "${ORCH_ORCHESTRATOR_PORT:-18889}:18789"
+    init: true
+    command:
+      [
+        "bash",
+        "-lc",
+        'entry=dist/index.mjs; [ -f "$$entry" ] || entry=dist/index.js; node "$$entry" gateway --bind lan --port 18789 --allow-unconfigured',
+      ]
+
+  worker-a:
+    image: ${OPENCLAW_IMAGE:-openclaw:local}
+    environment:
+      HOME: /home/node
+      TERM: xterm-256color
+      OPENCLAW_SKIP_CHANNELS: "1"
+      OPENCLAW_SKIP_GMAIL_WATCHER: "1"
+      OPENCLAW_SKIP_CANVAS_HOST: "1"
+      OPENCLAW_SKIP_BROWSER_CONTROL_SERVER: "1"
+      STATE_INSTANCE_URL: "${STATE_INSTANCE_URL:-}"
+      STATE_AUTH_TOKEN: "${STATE_AUTH_TOKEN:-}"
+      STORAGE_INSTANCE_URL: "${STORAGE_INSTANCE_URL:-}"
+      STORAGE_AUTH_TOKEN: "${STORAGE_AUTH_TOKEN:-}"
+      STORAGE_HTTP_PORT: "${STORAGE_HTTP_PORT:-}"
+    volumes:
+      - ${ORCH_CONFIG_ROOT}/worker-a:/home/node/.openclaw
+      - ${ORCH_CONFIG_ROOT}/workspace:/home/node/.openclaw/workspace
+    init: true
+    command:
+      [
+        "bash",
+        "-lc",
+        'entry=dist/index.mjs; [ -f "$$entry" ] || entry=dist/index.js; node "$$entry" gateway --bind lan --port 18789 --allow-unconfigured',
+      ]
+
+  worker-b:
+    image: ${OPENCLAW_IMAGE:-openclaw:local}
+    environment:
+      HOME: /home/node
+      TERM: xterm-256color
+      OPENCLAW_SKIP_CHANNELS: "1"
+      OPENCLAW_SKIP_GMAIL_WATCHER: "1"
+      OPENCLAW_SKIP_CANVAS_HOST: "1"
+      OPENCLAW_SKIP_BROWSER_CONTROL_SERVER: "1"
+      STATE_INSTANCE_URL: "${STATE_INSTANCE_URL:-}"
+      STATE_AUTH_TOKEN: "${STATE_AUTH_TOKEN:-}"
+      STORAGE_INSTANCE_URL: "${STORAGE_INSTANCE_URL:-}"
+      STORAGE_AUTH_TOKEN: "${STORAGE_AUTH_TOKEN:-}"
+      STORAGE_HTTP_PORT: "${STORAGE_HTTP_PORT:-}"
+    volumes:
+      - ${ORCH_CONFIG_ROOT}/worker-b:/home/node/.openclaw
+      - ${ORCH_CONFIG_ROOT}/workspace:/home/node/.openclaw/workspace
+    init: true
+    command:
+      [
+        "bash",
+        "-lc",
+        'entry=dist/index.mjs; [ -f "$$entry" ] || entry=dist/index.js; node "$$entry" gateway --bind lan --port 18789 --allow-unconfigured',
+      ]

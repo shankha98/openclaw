@@ -148,6 +148,18 @@ import {
   NodePairVerifyParamsSchema,
   type NodeRenameParams,
   NodeRenameParamsSchema,
+  type OrchestrationDispatchParams,
+  OrchestrationDispatchParamsSchema,
+  type OrchestrationDispatchResult,
+  OrchestrationDispatchResultSchema,
+  type OrchestrationResultEvent,
+  OrchestrationResultEventSchema,
+  type OrchestrationStatusParams,
+  OrchestrationStatusParamsSchema,
+  type OrchestrationStatusResult,
+  OrchestrationStatusResultSchema,
+  type OrchestrationWorkerStatus,
+  OrchestrationWorkerStatusSchema,
   type PollParams,
   PollParamsSchema,
   PROTOCOL_VERSION,
@@ -271,6 +283,15 @@ export const validateNodeInvokeResultParams = ajv.compile<NodeInvokeResultParams
   NodeInvokeResultParamsSchema,
 );
 export const validateNodeEventParams = ajv.compile<NodeEventParams>(NodeEventParamsSchema);
+export const validateOrchestrationDispatchParams = ajv.compile<OrchestrationDispatchParams>(
+  OrchestrationDispatchParamsSchema,
+);
+export const validateOrchestrationStatusParams = ajv.compile<OrchestrationStatusParams>(
+  OrchestrationStatusParamsSchema,
+);
+export const validateOrchestrationResultEvent = ajv.compile<OrchestrationResultEvent>(
+  OrchestrationResultEventSchema,
+);
 export const validateSessionsListParams = ajv.compile<SessionsListParams>(SessionsListParamsSchema);
 export const validateSessionsPreviewParams = ajv.compile<SessionsPreviewParams>(
   SessionsPreviewParamsSchema,
@@ -425,6 +446,12 @@ export {
   NodePairVerifyParamsSchema,
   NodeListParamsSchema,
   NodeInvokeParamsSchema,
+  OrchestrationDispatchParamsSchema,
+  OrchestrationDispatchResultSchema,
+  OrchestrationStatusParamsSchema,
+  OrchestrationWorkerStatusSchema,
+  OrchestrationStatusResultSchema,
+  OrchestrationResultEventSchema,
   SessionsListParamsSchema,
   SessionsPreviewParamsSchema,
   SessionsPatchParamsSchema,
@@ -565,6 +592,12 @@ export type {
   NodeInvokeParams,
   NodeInvokeResultParams,
   NodeEventParams,
+  OrchestrationDispatchParams,
+  OrchestrationDispatchResult,
+  OrchestrationStatusParams,
+  OrchestrationWorkerStatus,
+  OrchestrationStatusResult,
+  OrchestrationResultEvent,
   SessionsListParams,
   SessionsPreviewParams,
   SessionsResolveParams,

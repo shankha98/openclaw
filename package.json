@@ -89,6 +89,7 @@
     "test:docker:live-gateway": "bash scripts/test-live-gateway-models-docker.sh",
     "test:docker:live-models": "bash scripts/test-live-models-docker.sh",
     "test:docker:onboard": "bash scripts/e2e/onboard-docker.sh",
+    "test:docker:orchestration-rice": "bash scripts/e2e/orchestration-rice-docker.sh",
     "test:docker:plugins": "bash scripts/e2e/plugins-docker.sh",
     "test:docker:qr": "bash scripts/e2e/qr-import-docker.sh",
     "test:e2e": "vitest run --config vitest.e2e.config.ts",

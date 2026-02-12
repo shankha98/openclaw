@@ -20,6 +20,48 @@ Most setups should use one Gateway because a single Gateway can handle multiple 
 
 If these are shared, you will hit config races and port conflicts.
 
+## Orchestration with Rice state pubsub
+
+For cross-gateway task routing, enable `orchestration` on each instance and point all instances to
+the same external Rice endpoint + run ID.
+
+Orchestrator example:
+
+```json
+{
+  "orchestration": {
+    "enabled": true,
+    "role": "orchestrator",
+    "clusterId": "local-dev",
+    "workers": ["worker-a", "worker-b"],
+    "rice": {
+      "runId": "openclaw-orchestration",
+      "endpoint": "https://rice.example.com"
+    }
+  }
+}
+```
+
+Worker example:
+
+```json
+{
+  "orchestration": {
+    "enabled": true,
+    "role": "worker",
+    "clusterId": "local-dev",
+    "workerId": "worker-a",
+    "rice": {
+      "runId": "openclaw-orchestration",
+      "endpoint": "https://rice.example.com"
+    }
+  }
+}
+```
+
+Use gateway protocol methods/events for orchestration control and results:
+[Gateway protocol](/gateway/protocol#orchestration-rice-pubsub).
+
 ## Recommended: profiles (`--profile`)
 
 Profiles auto-scope `OPENCLAW_STATE_DIR` + `OPENCLAW_CONFIG_PATH` and suffix service names.

@@ -342,6 +342,17 @@ describe("gateway server misc", () => {
     }
   });
 
+  test("hello-ok advertises orchestration methods and events", async () => {
+    const ws2 = new WebSocket(`ws://127.0.0.1:${port}`);
+    await new Promise<void>((resolve) => ws2.once("open", resolve));
+    const hello = await connectOk(ws2);
+    const features = hello.features ?? { methods: [], events: [] };
+    expect(features.methods).toContain("orchestration.dispatch");
+    expect(features.methods).toContain("orchestration.status");
+    expect(features.events).toContain("orchestration.result");
+    ws2.close();
+  });
+
   test("send dedupes by idempotencyKey", { timeout: 60_000 }, async () => {
     const prevRegistry = getActivePluginRegistry() ?? emptyRegistry;
     try {

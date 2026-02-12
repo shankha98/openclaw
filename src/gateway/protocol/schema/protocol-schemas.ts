@@ -116,6 +116,14 @@ import {
   NodeRenameParamsSchema,
 } from "./nodes.js";
 import {
+  OrchestrationDispatchParamsSchema,
+  OrchestrationDispatchResultSchema,
+  OrchestrationResultEventSchema,
+  OrchestrationStatusParamsSchema,
+  OrchestrationStatusResultSchema,
+  OrchestrationWorkerStatusSchema,
+} from "./orchestration.js";
+import {
   SessionsCompactParamsSchema,
   SessionsDeleteParamsSchema,
   SessionsListParamsSchema,
@@ -168,6 +176,12 @@ export const ProtocolSchemas: Record<string, TSchema> = {
   NodeInvokeResultParams: NodeInvokeResultParamsSchema,
   NodeEventParams: NodeEventParamsSchema,
   NodeInvokeRequestEvent: NodeInvokeRequestEventSchema,
+  OrchestrationDispatchParams: OrchestrationDispatchParamsSchema,
+  OrchestrationDispatchResult: OrchestrationDispatchResultSchema,
+  OrchestrationStatusParams: OrchestrationStatusParamsSchema,
+  OrchestrationWorkerStatus: OrchestrationWorkerStatusSchema,
+  OrchestrationStatusResult: OrchestrationStatusResultSchema,
+  OrchestrationResultEvent: OrchestrationResultEventSchema,
   SessionsListParams: SessionsListParamsSchema,
   SessionsPreviewParams: SessionsPreviewParamsSchema,
   SessionsResolveParams: SessionsResolveParamsSchema,

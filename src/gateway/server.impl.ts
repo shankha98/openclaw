@@ -41,6 +41,7 @@ import {
 import { scheduleGatewayUpdateCheck } from "../infra/update-startup.js";
 import { startDiagnosticHeartbeat, stopDiagnosticHeartbeat } from "../logging/diagnostic.js";
 import { createSubsystemLogger, runtimeForLogger } from "../logging/subsystem.js";
+import { createOrchestrationRuntime } from "../orchestration/runtime.js";
 import { runOnboardingWizard } from "../wizard/onboarding.js";
 import { startGatewayConfigReloader } from "./config-reload.js";
 import { ExecApprovalManager } from "./exec-approval-manager.js";
@@ -366,6 +367,21 @@ export async function startGatewayServer(
   const nodeSubscribe = nodeSubscriptions.subscribe;
   const nodeUnsubscribe = nodeSubscriptions.unsubscribe;
   const nodeUnsubscribeAll = nodeSubscriptions.unsubscribeAll;
+  const orchestration = createOrchestrationRuntime({
+    cfg: cfgAtStart,
+    deps,
+  });
+  if (orchestration) {
+    await orchestration.start();
+    orchestration.onResult(({ result, requesterConnIds }) => {
+      if (requesterConnIds.size > 0) {
+        broadcastToConnIds("orchestration.result", result, requesterConnIds, {
+          dropIfSlow: true,
+        });
+      }
+      nodeSendToSession(result.sessionKey, "orchestration.result", result);
+    });
+  }
   const broadcastVoiceWakeChanged = (triggers: string[]) => {
     broadcast("voicewake.changed", { triggers }, { dropIfSlow: true });
   };
@@ -525,6 +541,7 @@ export async function startGatewayServer(
       markChannelLoggedOut,
       wizardRunner,
       broadcastVoiceWakeChanged,
+      orchestration,
     },
   });
   logGatewayStartup({
@@ -617,6 +634,7 @@ export async function startGatewayServer(
     clients,
     configReloader,
     browserControl,
+    orchestration,
     wss,
     httpServer,
     httpServers,

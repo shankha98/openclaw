@@ -66,6 +66,7 @@ const GROUP_LABELS: Record<string, string> = {
   browser: "Browser",
   talk: "Talk",
   channels: "Messaging Channels",
+  orchestration: "Orchestration",
   skills: "Skills",
   plugins: "Plugins",
   discovery: "Discovery",
@@ -93,6 +94,7 @@ const GROUP_ORDER: Record<string, number> = {
   browser: 130,
   talk: 140,
   channels: 150,
+  orchestration: 155,
   skills: 200,
   plugins: 205,
   discovery: 210,
@@ -268,6 +270,21 @@ const FIELD_LABELS: Record<string, string> = {
   "memory.rice.sync": "Rice Sync",
   "memory.rice.sync.enabled": "Enable Rice Sync",
   "memory.rice.sync.interval": "Rice Sync Interval",
+  orchestration: "Orchestration",
+  "orchestration.enabled": "Enable Orchestration",
+  "orchestration.role": "Orchestration Role",
+  "orchestration.clusterId": "Orchestration Cluster ID",
+  "orchestration.workerId": "Orchestration Worker ID",
+  "orchestration.workers": "Orchestration Worker Allowlist",
+  "orchestration.heartbeat": "Orchestration Heartbeat",
+  "orchestration.heartbeat.interval": "Heartbeat Interval",
+  "orchestration.heartbeat.ttl": "Heartbeat TTL",
+  "orchestration.poll": "Orchestration Poll",
+  "orchestration.poll.interval": "Reconciliation Poll Interval",
+  "orchestration.retention": "Orchestration Retention",
+  "orchestration.rice": "Orchestration Rice",
+  "orchestration.rice.runId": "Orchestration Rice Run ID",
+  "orchestration.rice.endpoint": "Orchestration Rice Endpoint",
   "memory.qmd.command": "QMD Binary",
   "memory.qmd.includeDefaultMemory": "QMD Include Default Memory",
   "memory.qmd.paths": "QMD Extra Paths",
@@ -605,6 +622,26 @@ const FIELD_HELP: Record<string, string> = {
     "Enable Rice sync status reporting (no local file indexing; default: true).",
   "memory.rice.sync.interval":
     "Status sync interval for Rice memory backend (duration string, default: 1m).",
+  "orchestration.enabled":
+    "Enable Rice-backed orchestrator/worker runtime (default: false; requires restart).",
+  "orchestration.role":
+    'Runtime role for this gateway ("off", "orchestrator", or "worker"; default: "off").',
+  "orchestration.clusterId":
+    'Cluster identifier used for worker routing isolation (default: "local-dev").',
+  "orchestration.workerId": 'Worker identity (required when orchestration.role is "worker").',
+  "orchestration.workers":
+    "Optional static worker allowlist for orchestrator routing and liveness checks.",
+  "orchestration.heartbeat.interval": "Heartbeat publish interval (duration string, default: 5s).",
+  "orchestration.heartbeat.ttl":
+    "Heartbeat freshness TTL before workers are considered stale (duration string, default: 20s).",
+  "orchestration.poll.interval":
+    "Reconciliation polling interval for missed updates (duration string, default: 5s).",
+  "orchestration.retention":
+    "Retention window for orchestration task/result/idempotency variables (duration string, default: 7d).",
+  "orchestration.rice.runId":
+    'Shared Rice run ID for orchestration state (default: "openclaw-orchestration").',
+  "orchestration.rice.endpoint":
+    "Optional Rice endpoint override for orchestration state and storage URLs.",
   "memory.qmd.command": "Path to the qmd binary (default: resolves from PATH).",
   "memory.qmd.includeDefaultMemory":
     "Whether to automatically index MEMORY.md + memory/**/*.md (default: true).",
@@ -790,6 +827,10 @@ const FIELD_PLACEHOLDERS: Record<string, string> = {
   "gateway.controlUi.basePath": "/openclaw",
   "gateway.controlUi.root": "dist/control-ui",
   "gateway.controlUi.allowedOrigins": "https://control.example.com",
+  "orchestration.clusterId": "local-dev",
+  "orchestration.workerId": "worker-a",
+  "orchestration.rice.runId": "openclaw-orchestration",
+  "orchestration.rice.endpoint": "https://rice.example.com",
   "channels.mattermost.baseUrl": "https://chat.example.com",
   "agents.list[].identity.avatar": "avatars/openclaw.png",
 };

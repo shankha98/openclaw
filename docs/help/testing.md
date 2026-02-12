@@ -317,6 +317,7 @@ These run `pnpm test:live` inside the repo Docker image, mounting your local con
 - Gateway + dev agent: `pnpm test:docker:live-gateway` (script: `scripts/test-live-gateway-models-docker.sh`)
 - Onboarding wizard (TTY, full scaffolding): `pnpm test:docker:onboard` (script: `scripts/e2e/onboard-docker.sh`)
 - Gateway networking (two containers, WS auth + health): `pnpm test:docker:gateway-network` (script: `scripts/e2e/gateway-network-docker.sh`)
+- Orchestrator + 2 workers over Rice state pub/sub (requires external Rice endpoint): `pnpm test:docker:orchestration-rice` (script: `scripts/e2e/orchestration-rice-docker.sh`)
 - Plugins (custom extension load + registry smoke): `pnpm test:docker:plugins` (script: `scripts/e2e/plugins-docker.sh`)
 
 Useful env vars:

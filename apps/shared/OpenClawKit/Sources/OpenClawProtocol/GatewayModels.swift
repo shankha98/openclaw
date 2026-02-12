@@ -896,6 +896,214 @@ public struct NodeInvokeRequestEvent: Codable, Sendable {
     }
 }
 
+public struct OrchestrationDispatchParams: Codable, Sendable {
+    public let idempotencykey: String
+    public let message: String
+    public let sessionkey: String
+    public let targetworkerid: String?
+    public let agentid: String?
+    public let thinking: String?
+    public let deliver: Bool?
+    public let to: String?
+    public let channel: String?
+    public let timeoutms: Int?
+
+    public init(
+        idempotencykey: String,
+        message: String,
+        sessionkey: String,
+        targetworkerid: String?,
+        agentid: String?,
+        thinking: String?,
+        deliver: Bool?,
+        to: String?,
+        channel: String?,
+        timeoutms: Int?
+    ) {
+        self.idempotencykey = idempotencykey
+        self.message = message
+        self.sessionkey = sessionkey
+        self.targetworkerid = targetworkerid
+        self.agentid = agentid
+        self.thinking = thinking
+        self.deliver = deliver
+        self.to = to
+        self.channel = channel
+        self.timeoutms = timeoutms
+    }
+    private enum CodingKeys: String, CodingKey {
+        case idempotencykey = "idempotencyKey"
+        case message
+        case sessionkey = "sessionKey"
+        case targetworkerid = "targetWorkerId"
+        case agentid = "agentId"
+        case thinking
+        case deliver
+        case to
+        case channel
+        case timeoutms = "timeoutMs"
+    }
+}
+
+public struct OrchestrationDispatchResult: Codable, Sendable {
+    public let taskid: String
+    public let idempotencykey: String
+    public let targetworkerid: String
+    public let status: AnyCodable
+    public let acceptedat: Int
+
+    public init(
+        taskid: String,
+        idempotencykey: String,
+        targetworkerid: String,
+        status: AnyCodable,
+        acceptedat: Int
+    ) {
+        self.taskid = taskid
+        self.idempotencykey = idempotencykey
+        self.targetworkerid = targetworkerid
+        self.status = status
+        self.acceptedat = acceptedat
+    }
+    private enum CodingKeys: String, CodingKey {
+        case taskid = "taskId"
+        case idempotencykey = "idempotencyKey"
+        case targetworkerid = "targetWorkerId"
+        case status
+        case acceptedat = "acceptedAt"
+    }
+}
+
+public struct OrchestrationStatusParams: Codable, Sendable {
+}
+
+public struct OrchestrationWorkerStatus: Codable, Sendable {
+    public let workerid: String
+    public let live: Bool
+    public let _static: Bool
+    public let lastseenat: String?
+    public let agems: Int?
+    public let version: String?
+
+    public init(
+        workerid: String,
+        live: Bool,
+        _static: Bool,
+        lastseenat: String?,
+        agems: Int?,
+        version: String?
+    ) {
+        self.workerid = workerid
+        self.live = live
+        self._static = _static
+        self.lastseenat = lastseenat
+        self.agems = agems
+        self.version = version
+    }
+    private enum CodingKeys: String, CodingKey {
+        case workerid = "workerId"
+        case live
+        case _static = "static"
+        case lastseenat = "lastSeenAt"
+        case agems = "ageMs"
+        case version
+    }
+}
+
+public struct OrchestrationStatusResult: Codable, Sendable {
+    public let enabled: Bool
+    public let role: AnyCodable
+    public let clusterid: AnyCodable
+    public let runid: AnyCodable
+    public let workers: [OrchestrationWorkerStatus]
+    public let liveworkers: [String]
+    public let ts: Int
+
+    public init(
+        enabled: Bool,
+        role: AnyCodable,
+        clusterid: AnyCodable,
+        runid: AnyCodable,
+        workers: [OrchestrationWorkerStatus],
+        liveworkers: [String],
+        ts: Int
+    ) {
+        self.enabled = enabled
+        self.role = role
+        self.clusterid = clusterid
+        self.runid = runid
+        self.workers = workers
+        self.liveworkers = liveworkers
+        self.ts = ts
+    }
+    private enum CodingKeys: String, CodingKey {
+        case enabled
+        case role
+        case clusterid = "clusterId"
+        case runid = "runId"
+        case workers
+        case liveworkers = "liveWorkers"
+        case ts
+    }
+}
+
+public struct OrchestrationResultEvent: Codable, Sendable {
+    public let schemaversion: Int
+    public let taskid: String
+    public let idempotencykey: String
+    public let targetworkerid: String
+    public let sessionkey: String
+    public let status: AnyCodable
+    public let summary: String
+    public let result: AnyCodable?
+    public let error: String?
+    public let startedat: String
+    public let finishedat: String
+    public let attempt: Int
+
+    public init(
+        schemaversion: Int,
+        taskid: String,
+        idempotencykey: String,
+        targetworkerid: String,
+        sessionkey: String,
+        status: AnyCodable,
+        summary: String,
+        result: AnyCodable?,
+        error: String?,
+        startedat: String,
+        finishedat: String,
+        attempt: Int
+    ) {
+        self.schemaversion = schemaversion
+        self.taskid = taskid
+        self.idempotencykey = idempotencykey
+        self.targetworkerid = targetworkerid
+        self.sessionkey = sessionkey
+        self.status = status
+        self.summary = summary
+        self.result = result
+        self.error = error
+        self.startedat = startedat
+        self.finishedat = finishedat
+        self.attempt = attempt
+    }
+    private enum CodingKeys: String, CodingKey {
+        case schemaversion = "schemaVersion"
+        case taskid = "taskId"
+        case idempotencykey = "idempotencyKey"
+        case targetworkerid = "targetWorkerId"
+        case sessionkey = "sessionKey"
+        case status
+        case summary
+        case result
+        case error
+        case startedat = "startedAt"
+        case finishedat = "finishedAt"
+        case attempt
+    }
+}
+
 public struct SessionsListParams: Codable, Sendable {
     public let limit: Int?
     public let activeminutes: Int?

@@ -109,6 +109,14 @@ import type {
   NodeRenameParamsSchema,
 } from "./nodes.js";
 import type {
+  OrchestrationDispatchParamsSchema,
+  OrchestrationDispatchResultSchema,
+  OrchestrationResultEventSchema,
+  OrchestrationStatusParamsSchema,
+  OrchestrationStatusResultSchema,
+  OrchestrationWorkerStatusSchema,
+} from "./orchestration.js";
+import type {
   SessionsCompactParamsSchema,
   SessionsDeleteParamsSchema,
   SessionsListParamsSchema,
@@ -157,6 +165,12 @@ export type NodeDescribeParams = Static<typeof NodeDescribeParamsSchema>;
 export type NodeInvokeParams = Static<typeof NodeInvokeParamsSchema>;
 export type NodeInvokeResultParams = Static<typeof NodeInvokeResultParamsSchema>;
 export type NodeEventParams = Static<typeof NodeEventParamsSchema>;
+export type OrchestrationDispatchParams = Static<typeof OrchestrationDispatchParamsSchema>;
+export type OrchestrationDispatchResult = Static<typeof OrchestrationDispatchResultSchema>;
+export type OrchestrationStatusParams = Static<typeof OrchestrationStatusParamsSchema>;
+export type OrchestrationWorkerStatus = Static<typeof OrchestrationWorkerStatusSchema>;
+export type OrchestrationStatusResult = Static<typeof OrchestrationStatusResultSchema>;
+export type OrchestrationResultEvent = Static<typeof OrchestrationResultEventSchema>;
 export type SessionsListParams = Static<typeof SessionsListParamsSchema>;
 export type SessionsPreviewParams = Static<typeof SessionsPreviewParamsSchema>;
 export type SessionsResolveParams = Static<typeof SessionsResolveParamsSchema>;

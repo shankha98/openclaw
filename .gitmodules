@@ -1,0 +1,3 @@
+[submodule "apps/openclaw-manager"]
+	path = apps/openclaw-manager
+	url = ./apps/openclaw-manager
